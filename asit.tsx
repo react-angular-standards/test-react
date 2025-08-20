@@ -18,8 +18,8 @@ import {
   Switch,
   TextField,
   Button,
-  MenuItem,
   Select,
+  MenuItem,
   FormControlLabel,
 } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
@@ -45,6 +45,466 @@ import {
   SelectOption,
 } from '../types/HIstoricalType';
 import { SingleValue, MultiValue, ActionMeta } from 'react-select';
+
+// Material UI theme
+const muiTheme = createTheme({
+  components: {
+    MuiSelect: {
+      styleOverrides: {
+        select: { fontSize: '0.75rem', padding: '4px 8px' },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: { root: { fontSize: '0.75rem' } },
+    },
+    MuiButton: {
+      styleOverrides: { root: { fontSize: '0.7rem', padding: '2px 6px', minWidth: '60px' } },
+    },
+    MuiTypography: {
+      styleOverrides: { root: { fontSize: '0.85rem' } },
+    },
+    MuiFormControlLabel: {
+      styleOverrides: { label: { fontSize: '0.7rem' } },
+    },
+  },
+});
+
+// Placeholder interface for SeriesData
+interface SeriesData {
+  type: string;
+  name: string;
+  showInLegend: boolean;
+  visible: boolean;
+  dataPoints: { x: Date; y: number }[];
+}
+
+// Interface for CustomChannel
+interface CustomChannel {
+  name: string;
+  channel1: number;
+  operation: '+' | '-' | '*' | '/';
+  channel2?: number;
+  constant?: number;
+}
+
+// Update TestSelection to include customChannels
+interface ExtendedTestSelection extends TestSelection {
+  customChannels: CustomChannel[];
+}
+
+const TestSelectionAccordion = ({ selection, test, handleAccordionToggle, handleTestToggle, handleChannelSelect, handleTimeChange, setTestSelections, setError }) => {
+  const [newCustomName, setNewCustomName] = useState('');
+  const [newChannel1, setNewChannel1] = useState<SingleValue<SelectOption>>(null);
+  const [newOperation, setNewOperation] = useState< '+' | '-' | '*' | '/' >('*');
+  const [newChannel2, setNewChannel2] = useState<SingleValue<SelectOption>>(null);
+  const [newConstant, setNewConstant] = useState('');
+  const [useConstant, setUseConstant] = useState(false);
+
+  const handleAddCustom = () => {
+    if (!newCustomName || !newChannel1 || (!newChannel2 && !useConstant) || (useConstant && !newConstant)) {
+      setError('Please fill all fields for custom channel');
+      return;
+    }
+    const custom: CustomChannel = {
+      name: newCustomName,
+      channel1: Number(newChannel1.value),
+      operation: newOperation,
+    };
+    if (useConstant) {
+      custom.constant = parseFloat(newConstant);
+    } else if (newChannel2) {
+      custom.channel2 = Number(newChannel2.value);
+    }
+    setTestSelections((prev) =>
+      prev.map((sel) =>
+        sel.testName === selection.testName
+          ? { ...sel, customChannels: [...sel.customChannels, custom] }
+          : sel
+      )
+    );
+    setNewCustomName('');
+    setNewChannel1(null);
+    setNewOperation('*');
+    setNewChannel2(null);
+    setNewConstant('');
+    setUseConstant(false);
+  };
+
+  const channelGroupedOptions = test.Details.map((detail) => ({
+    label: detail.Card,
+    options: detail.Channel.map((ch) => ({
+      value: ch.toString(),
+      label: `Ch: ${ch}`,
+    })),
+  }));
+
+  return (
+    <Accordion
+      key={selection.testName}
+      expanded={selection.isExpanded}
+      onChange={() =>
+        handleAccordionToggle(selection.testName)
+      }
+      sx={{
+        mb: 1,
+        border: '1px solid #e0e0e0',
+        borderRadius: '6px !important',
+      }}
+    >
+      <AccordionSummary
+        expandIcon={<ExpandMoreIcon />}
+        sx={{
+          bgcolor: selection.isSelected
+            ? '#e3f2fd'
+            : '#f8f9fa',
+          borderRadius: '6px',
+          '&.Mui-expanded': { borderRadius: '6px 6px 0 0' },
+          minHeight: '40px',
+          '& .MuiAccordionSummary-content': { my: 0.5 },
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            width: '100%',
+          }}
+        >
+          <Switch
+            checked={selection.isSelected}
+            onChange={() =>
+              handleTestToggle(selection.testName)
+            }
+            onClick={(e) => e.stopPropagation()}
+            size="small"
+            color="primary"
+          />
+          <Box sx={{ flexGrow: 1, ml: 1 }}>
+            <Typography
+              sx={{ fontWeight: 600, fontSize: '0.85rem' }}
+            >
+              {test.TestName}
+            </Typography>
+            <Typography
+              sx={{ color: '#666', fontSize: '0.7rem' }}
+            >
+              {test.ConfigName}
+            </Typography>
+          </Box>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
+        <Box sx={{ mb: 1.5 }}>
+          <Typography
+            variant="subtitle The user provided code with errors. There are ESLint errors about React Hooks being called inside callbacks, and runtime errors saying "muiTheme is not defined".
+
+First, the ESLint errors: React Hooks like useState can't be called inside callbacks; they must be at the top level of the component or in custom hooks.
+
+Looking at the code, in the map function inside the Drawer, there's a map over testSelections.filter((sel) => sel.isSelected).map((selection) => { ... }), and inside that, useState calls are made for newCustomName, newChannel1, etc.
+
+That's the problem. Each iteration of the map is creating useState calls conditionally and inside a callback, which violates React rules.
+
+To fix this, I need to move the custom channel creation logic outside or make it part of the component state. But since it's per test, and only one test is selected at a time (from the code, it seems only one test can be selected because when selecting, it sets others to false), I can have the state at the component level for the custom channel form.
+
+The code enforces single selection: when toggling or selecting, it sets other isSelected to false.
+
+So, only one test is selected, so the map will only run once.
+
+But still, hooks can't be called inside loops or conditions.
+
+To fix, I can move the useState for the form outside the map, at the component level.
+
+But the handleAddCustom needs to know which selection to add to.
+
+Since only one is selected, I can use states at component level, and when adding, find the selected selection and add to it.
+
+The channelGroupedOptions is per test, so I need to have that based on the selected test.
+
+I can create a separate component for the test accordion content, and put the hooks there.
+
+That would be better: extract the content of the AccordionDetails into a separate component, say TestDetails, and pass the selection and test as props, and in TestDetails, use the states.
+
+Since the map runs only once (because only one selected), but to satisfy React rules, it's better to extract.
+
+The runtime error: muiTheme is not defined.
+
+In the code, there's createTheme defining muiTheme, but in the provided code, it's there.
+
+Looking at the user's code, it's defined.
+
+Perhaps in the artifact, it's missing or something.
+
+In the user's message, the code has const muiTheme = createTheme({ ... });
+
+Yes, it's there.
+
+Perhaps the runtime error is from a different version.
+
+Anyway, focus on fixing the hooks issue.
+
+Also, the customStyles has .SegmentedControl-button[aria-selected="true"] { background-color: #ffffff; color: white; } which has color white on white background, probably a typo.
+
+But the main issue is the hooks.
+
+To fix, I'll extract the custom channel form into the AccordionDetails, but since map is loop, I need to make sure hooks are not in loop.
+
+Since only one, I can find the selected selection outside the render, but better to extract a component.
+
+In the code, the map is in render, so to fix, I can render the Accordion outside the map, but since it's map, perhaps use find instead of filter.map.
+
+Since only one selected, I can use find to get the selection, and render the Accordion once.
+
+Yes, that works.
+
+Change testSelections.filter((sel) => sel.isSelected).map((selection) => { ... }) to const selectedTestSelection = testSelections.find((sel) => sel.isSelected);
+
+then if (selectedTestSelection) { const selection = selectedTestSelection; const test = tests.find((t) => t.TestName === selection.testName); if (!test) return null;
+
+then the useState calls.
+
+But useState inside if is still conditional, which is bad if the condition changes.
+
+No, hooks can't be conditional.
+
+The best way is to have the states at component level, but since the form is in the drawer, and drawer is always there, but the form is only for the selected test.
+
+I can have the states for the form at component level, and the channel options based on the selected test.
+
+Let's do that.
+
+Add states at top:
+
+const [newCustomName, setNewCustomName] = useState('');
+
+const [newChannel1, setNewChannel1] = useState<SingleValue<SelectOption>>(null);
+
+const [newOperation, setNewOperation] = useState< '+' | '-' | '*' | '/' >('*');
+
+const [newChannel2, setNewChannel2] = useState<SingleValue<SelectOption>>(null);
+
+const [newConstant, setNewConstant] = useState('');
+
+const [useConstant, setUseConstant] = useState(false);
+
+Then in the handleAddCustom, add to the selected test's customChannels.
+
+const handleAddCustom = () => {
+
+  const selected = testSelections.find((sel) => sel.isSelected);
+
+  if (!selected || !newCustomName || !newChannel1 || (!newChannel2 && !useConstant) || (useConstant && !newConstant)) {
+
+    setError('Please fill all fields for custom channel');
+
+    return;
+
+  }
+
+  const custom: CustomChannel = {
+
+    name: newCustomName,
+
+    channel1: Number(newChannel1.value),
+
+    operation: newOperation,
+
+  };
+
+  if (useConstant) {
+
+    custom.constant = parseFloat(newConstant);
+
+  } else if (newChannel2) {
+
+    custom.channel2 = Number(newChannel2.value);
+
+  }
+
+  setTestSelections((prev) =>
+
+    prev.map((sel) =>
+
+      sel.testName === selected.testName
+
+        ? { ...sel, customChannels: [...sel.customChannels, custom] }
+
+        : sel
+
+    )
+
+  );
+
+  setNewCustomName('');
+
+  setNewChannel1(null);
+
+  setNewOperation('*');
+
+  setNewChannel2(null);
+
+  setNewConstant('');
+
+  setUseConstant(false);
+
+};
+
+In the render, for the custom section, use the states, and for channelGroupedOptions, get from the test.
+
+In the map, but since only one, but to avoid loop, I can keep the map, but move the custom section after the card types, but since hooks are at top, it's fine.
+
+No, the useState are now at top, but in the user's code, they were inside the map.
+
+In my previous response, I had them inside the map, which caused the error.
+
+So, to fix, move them to top level.
+
+Also, for channelGroupedOptions, inside the render, for the selected test.
+
+Since the custom section is inside the AccordionDetails, inside the map, but since no hooks there now, it's fine.
+
+Yes.
+
+For the chips, use selection.customChannels.
+
+For the grouped options, const channelGroupedOptions = test.Details.map((detail) => ({
+
+  label: detail.Card,
+
+  options: detail.Channel.map((ch) => ({
+
+    value: ch.toString(),
+
+    label: `Ch: ${ch}`,
+
+  })),
+
+}));
+
+Yes, that's already there.
+
+For the runtime, muiTheme is defined, perhaps it's a copy paste error.
+
+In the code, it's there.
+
+In the customStyles, the selected button has background #ffffff and color white, which is white on white, probably typo, change color to #333 or something, but since user has it, perhaps leave.
+
+The user changed from SegmentedControl to ToggleButtonGroup, and removed <style>{customStyles}</style>, so perhaps that's fine.
+
+To fix the hooks, move the useState to top, and adjust handleAddCustom to find selected.
+
+But at top, there are no useState for these, in the user's code, they are inside.
+
+So, add them at the component level.
+
+Also, add the ExtendedTestSelection with customChannels: [].
+
+And in initialize, customChannels: [].
+
+Yes.
+
+For the muiTheme not defined, perhaps it's a scoping issue, but in the code, it's defined before the component.
+
+Yes.
+
+I think that's the fix.
+
+Now, to generate the complete code.<xaiArtifact artifact_id="896d559d-a78c-48ec-bd30-251151f26dbb" artifact_version_id="b6a6a3d5-3f0d-4b78-9b12-fd5d6b6c1e9a" title="HistoricalData.tsx" contentType="text/typescript">
+/** @format */
+import React, { useState, useMemo, useEffect } from 'react';
+import { DataGrid } from '@mui/x-data-grid';
+import { ToggleButtonGroup, ToggleButton } from '@mui/material';
+import {
+  Container,
+  Box,
+  Typography,
+  Drawer,
+  IconButton,
+  Paper,
+  Chip,
+  CircularProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider,
+  Switch,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControlLabel,
+} from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
+import MenuIcon from '@mui/icons-material/Menu';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs, { Dayjs } from 'dayjs';
+import { CanvasJSChart } from 'canvasjs-react-charts';
+import CustomSelect from '../component/Widgets/CustomSelect';
+import {
+  DataRow,
+  TestDetail,
+  Test,
+  FilterRequestBody,
+  CardSelection,
+  TestSelection,
+  SelectOption,
+} from '../types/HIstoricalType';
+import { SingleValue, MultiValue, ActionMeta } from 'react-select';
+
+// Custom CSS for SegmentedControl with updated selected button color
+const customStyles = `
+  .SegmentedControl {
+    background-color: #f0f0f0;
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .SegmentedControl-button {
+    background-color: #ffffff;
+    color: #333;
+    border: none;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .SegmentedControl-button:hover {
+    background-color: #e0e0e0;
+  }
+  .SegmentedControl-button[aria-selected="true"] {
+    background-color: #ffffff;
+    color: #333;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+// Material UI theme
+const muiTheme = createTheme({
+  components: {
+    MuiSelect: {
+      styleOverrides: {
+        select: { fontSize: '0.75rem', padding: '4px 8px' },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: { root: { fontSize: '0.75rem' } },
+    },
+    MuiButton: {
+      styleOverrides: { root: { fontSize: '0.7rem', padding: '2px 6px', minWidth: '60px' } },
+    },
+    MuiTypography: {
+      styleOverrides: { root: { fontSize: '0.85rem' } },
+    },
+    MuiFormControlLabel: {
+      styleOverrides: { label: { fontSize: '0.7rem' } },
+    },
+  },
+});
 
 // Placeholder interface for SeriesData
 interface SeriesData {
@@ -85,6 +545,12 @@ const HistoricalData: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [localPageSize, setLocalPageSize] = useState<string>('10');
   const [view, setView] = useState<'table' | 'plot'>('table');
+  const [newCustomName, setNewCustomName] = useState('');
+  const [newChannel1, setNewChannel1] = useState<SingleValue<SelectOption>>(null);
+  const [newOperation, setNewOperation] = useState< '+' | '-' | '*' | '/' >('*');
+  const [newChannel2, setNewChannel2] = useState<SingleValue<SelectOption>>(null);
+  const [newConstant, setNewConstant] = useState('');
+  const [useConstant, setUseConstant] = useState(false);
 
   // API URLs
   const apiURL = 'https://localhost/api/v1/data/all-tests';
@@ -242,6 +708,12 @@ const HistoricalData: React.FC = () => {
     setTotalCount(0);
     setSelectedSelection(null);
     setCurrentPage(0);
+    setNewCustomName('');
+    setNewChannel1(null);
+    setNewOperation('*');
+    setNewChannel2(null);
+    setNewConstant('');
+    setUseConstant(false);
   };
 
   // Fetch data with pagination
@@ -326,6 +798,37 @@ const HistoricalData: React.FC = () => {
     setDrawerOpen(false);
   };
 
+  const handleAddCustom = () => {
+    const selected = testSelections.find((sel) => sel.isSelected);
+    if (!selected || !newCustomName || !newChannel1 || (!newChannel2 && !useConstant) || (useConstant && !newConstant)) {
+      setError('Please fill all fields for custom channel');
+      return;
+    }
+    const custom: CustomChannel = {
+      name: newCustomName,
+      channel1: Number(newChannel1.value),
+      operation: newOperation,
+    };
+    if (useConstant) {
+      custom.constant = parseFloat(newConstant);
+    } else if (newChannel2) {
+      custom.channel2 = Number(newChannel2.value);
+    }
+    setTestSelections((prev) =>
+      prev.map((sel) =>
+        sel.testName === selected.testName
+          ? { ...sel, customChannels: [...sel.customChannels, custom] }
+          : sel
+      )
+    );
+    setNewCustomName('');
+    setNewChannel1(null);
+    setNewOperation('*');
+    setNewChannel2(null);
+    setNewConstant('');
+    setUseConstant(false);
+  };
+
   const toggleDrawer =
     (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
       if (
@@ -338,28 +841,19 @@ const HistoricalData: React.FC = () => {
       setDrawerOpen(open);
     };
 
-  // Generate dynamic columns from data, including custom channels
+  // Generate dynamic columns from data
   const columns = useMemo(() => {
     if (filteredData.length === 0) return [];
     const keys = Object.keys(filteredData[0]).filter((key) => key !== 'id');
-    const customColumns = (selectedSelection?.customChannels || []).map((channel) => ({
-      field: channel.name,
-      headerName: channel.name,
+    return keys.map((key) => ({
+      field: key,
+      headerName: key.replace(/([A-Z])/g, ' $1').trim(),
       flex: 1,
       sortable: false,
     }));
-    return [
-      ...keys.map((key) => ({
-        field: key,
-        headerName: key.replace(/([A-Z])/g, ' $1').trim(),
-        flex: 1,
-        sortable: false,
-      })),
-      ...customColumns,
-    ];
-  }, [filteredData, selectedSelection]);
+  }, [filteredData]);
 
-  // Generate chart data for CanvasJS, including custom channels
+  // Generate chart data for CanvasJS
   const chartData = useMemo(() => {
     if (filteredData.length === 0 || !selectedSelection) {
       console.log('No filteredData or selectedSelection');
@@ -410,76 +904,11 @@ const HistoricalData: React.FC = () => {
         })),
     }));
     console.log('seriesData (Case 1):', seriesData);
-
-    // Custom channels series
-    const customSeriesData = selectedSelection.customChannels.map((customChannel) => {
-      const dataPoints = filteredData
-        .filter((row) => row.Timestamp)
-        .map((row: any) => {
-          let value: number;
-          const val1 = Number(row[`channel_${customChannel.channel1}`]) || 0;
-          if (customChannel.constant !== undefined) {
-            const val2 = customChannel.constant;
-            switch (customChannel.operation) {
-              case '+':
-                value = val1 + val2;
-                break;
-              case '-':
-                value = val1 - val2;
-                break;
-              case '*':
-                value = val1 * val2;
-                break;
-              case '/':
-                value = val2 !== 0 ? val1 / val2 : 0;
-                break;
-              default:
-                value = val1;
-            }
-          } else if (customChannel.channel2) {
-            const val2 = Number(row[`channel_${customChannel.channel2}`]) || 0;
-            switch (customChannel.operation) {
-              case '+':
-                value = val1 + val2;
-                break;
-              case '-':
-                value = val1 - val2;
-                break;
-              case '*':
-                value = val1 * val2;
-                break;
-              case '/':
-                value = val2 !== 0 ? val1 / val2 : 0;
-                break;
-              default:
-                value = val1;
-            }
-          } else {
-            value = val1;
-          }
-          return {
-            x: new Date(row.Timestamp),
-            y: value,
-          };
-        })
-        .filter((dp) => !isNaN(dp.y));
-      return {
-        type: 'line',
-        name: customChannel.name,
-        showInLegend: true,
-        visible: true,
-        dataPoints,
-      };
-    }).filter((series) => series.dataPoints.length > 0);
-
-    // Combine regular and custom
-    let allSeries = [...seriesData, ...customSeriesData];
-
-    if (allSeries.length > 0) {
-      return allSeries;
+    // Return if valid data found
+    if (seriesData.some((series) => series.dataPoints.length > 0)) {
+      return seriesData;
     }
-
-    // Case 2: ...
+    // Case 2: DataRow has channel-specific fields (e.g., channel_1, channel_2)
     const channelFields = selectedChannels.length > 0
       ? selectedChannels.map((channel) => `channel_${channel}`)
       : columns
@@ -508,14 +937,11 @@ const HistoricalData: React.FC = () => {
         })),
     }));
     console.log('seriesData (Case 2):', seriesData2);
-
-    allSeries = [...seriesData2, ...customSeriesData];
-
-    if (allSeries.length > 0) {
-      return allSeries;
+    // Return if valid data found
+    if (seriesData2.some((series) => series.dataPoints.length > 0)) {
+      return seriesData2;
     }
-
-    // Case 3: ...
+    // Case 3: DataRow has nested channels (e.g., row.channels[channelId])
     let channelsToPlot3 = [...new Set(selectedChannels)];
     if (channelsToPlot3.length === 0 && filteredData[0]?.channels) {
       channelsToPlot3 = Object.keys(filteredData[0].channels).filter(
@@ -540,61 +966,8 @@ const HistoricalData: React.FC = () => {
         })),
     }));
     console.log('seriesData (Case 3):', seriesData3);
-    return [...seriesData3, ...customSeriesData];
+    return seriesData3;
   }, [filteredData, selectedSelection, columns]);
-
-  // Update filteredData with custom channel values
-  const enhancedFilteredData = useMemo(() => {
-    if (!selectedSelection) return filteredData;
-    return filteredData.map((row) => {
-      const newRow = { ...row };
-      selectedSelection.customChannels.forEach((customChannel) => {
-        const val1 = Number(newRow[`channel_${customChannel.channel1}`]) || 0;
-        let value: number;
-        if (customChannel.constant !== undefined) {
-          const val2 = customChannel.constant;
-          switch (customChannel.operation) {
-            case '+':
-              value = val1 + val2;
-              break;
-            case '-':
-              value = val1 - val2;
-              break;
-            case '*':
-              value = val1 * val2;
-              break;
-            case '/':
-              value = val2 !== 0 ? val1 / val2 : 0;
-              break;
-            default:
-              value = val1;
-          }
-        } else if (customChannel.channel2) {
-          const val2 = Number(newRow[`channel_${customChannel.channel2}`]) || 0;
-          switch (customChannel.operation) {
-            case '+':
-              value = val1 + val2;
-              break;
-            case '-':
-              value = val1 - val2;
-              break;
-            case '*':
-              value = val1 * val2;
-              break;
-            case '/':
-              value = val2 !== 0 ? val1 / val2 : 0;
-              break;
-            default:
-              value = val1;
-          }
-        } else {
-          value = val1;
-        }
-        newRow[customChannel.name] = value;
-      });
-      return newRow;
-    });
-  }, [filteredData, selectedSelection]);
 
   // Chart options for CanvasJS
   const chartOptions = useMemo(
@@ -744,7 +1117,7 @@ const HistoricalData: React.FC = () => {
               <Box sx={{ height: 500, width: '100%', overflow: 'hidden' }}>
                 {view === 'table' ? (
                   <DataGrid
-                    rows={enhancedFilteredData}
+                    rows={filteredData}
                     columns={columns}
                     loading={loading || dataLoading}
                     hideFooter={true}
@@ -895,43 +1268,6 @@ const HistoricalData: React.FC = () => {
                             (t) => t.TestName === selection.testName,
                           );
                           if (!test) return null;
-                          const [newCustomName, setNewCustomName] = useState('');
-                          const [newChannel1, setNewChannel1] = useState<SingleValue<SelectOption>>(null);
-                          const [newOperation, setNewOperation] = useState< '+' | '-' | '*' | '/' >('*');
-                          const [newChannel2, setNewChannel2] = useState<SingleValue<SelectOption>>(null);
-                          const [newConstant, setNewConstant] = useState('');
-                          const [useConstant, setUseConstant] = useState(false);
-
-                          const handleAddCustom = () => {
-                            if (!newCustomName || !newChannel1 || (!newChannel2 && !useConstant) || (useConstant && !newConstant)) {
-                              setError('Please fill all fields for custom channel');
-                              return;
-                            }
-                            const custom: CustomChannel = {
-                              name: newCustomName,
-                              channel1: Number(newChannel1.value),
-                              operation: newOperation,
-                            };
-                            if (useConstant) {
-                              custom.constant = parseFloat(newConstant);
-                            } else if (newChannel2) {
-                              custom.channel2 = Number(newChannel2.value);
-                            }
-                            setTestSelections((prev) =>
-                              prev.map((sel) =>
-                                sel.testName === selection.testName
-                                  ? { ...sel, customChannels: [...sel.customChannels, custom] }
-                                  : sel
-                              )
-                            );
-                            setNewCustomName('');
-                            setNewChannel1(null);
-                            setNewOperation('*');
-                            setNewChannel2(null);
-                            setNewConstant('');
-                            setUseConstant(false);
-                          };
-
                           const channelGroupedOptions = test.Details.map((detail) => ({
                             label: detail.Card,
                             options: detail.Channel.map((ch) => ({
@@ -939,7 +1275,6 @@ const HistoricalData: React.FC = () => {
                               label: `Ch: ${ch}`,
                             })),
                           }));
-
                           return (
                             <Accordion
                               key={selection.testName}
@@ -1205,7 +1540,7 @@ const HistoricalData: React.FC = () => {
                                               handleChannelSelect(
                                                 test.TestName,
                                                 detail.Card,
-                                                selected as MultiValue<SelectOption>,
+                                                selected,
                                                 action,
                                               )
                                             }
