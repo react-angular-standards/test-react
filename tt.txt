@@ -1,0 +1,99 @@
+```javascript
+export const msalConfig = {
+  auth: {
+    clientId: 'YOUR_APP_ID', // TAS UAA Client ID
+    authority: 'YOUR_OPENID_CONNECT_DISCOVERY_URL', // e.g., https://<uaa-domain>/.well-known/openid-configuration
+    redirectUri: window.location.origin, // e.g., http://localhost:3000 or TAS app URL
+    knownAuthorities: ['YOUR_UAA_DOMAIN'], // e.g., <uaa-domain> (optional, for multi-tenant setups)
+  },
+  cache: {
+    cacheLocation: 'sessionStorage', // Safer than localStorage
+    storeAuthStateInCookie: false, // Set to true if needed for cross-browser support
+  },
+};
+
+export const loginRequest = {
+  scopes: ['openid', 'profile', 'email', 'cloud_controller.read'], // Match UAA client scopes
+};
+
+export const tokenRequest = {
+  scopes: ['cloud_controller.read'], // Scopes for TAS API access
+};
+
+// Token verification (optional, for manual validation)
+export const tokenVerificationKeys = {
+  jwksUri: 'YOUR_TOKEN_VERIFICATION_KEYS', // e.g., https://<uaa-domain>/token_keys
+};
+```
+
+```javascript
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalProvider } from '@azure/msal-react';
+import App from './App'; // Your existing App component
+import { msalConfig } from './authConfig';
+
+const msalInstance = new PublicClientApplication(msalConfig);
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <MsalProvider instance={msalInstance}>
+    <App />
+  </MsalProvider>
+);
+```
+
+
+```javascript
+import React from 'react';
+import { useMsal, useIsAuthenticated, AuthenticatedTemplate, UnauthenticatedTemplate } from '@azure/msal-react';
+import { loginRequest } from '../authConfig';
+
+const Auth = () => {
+  const { instance } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+
+  const handleLogin = () => {
+    instance.loginRedirect(loginRequest).catch((error) => {
+      console.error('Login failed:', error);
+    });
+  };
+
+  const handleLogout = () => {
+    instance.logoutRedirect({
+      postLogoutRedirectUri: window.location.origin,
+    }).catch((error) => {
+      console.error('Logout failed:', error);
+    });
+  };
+
+  return (
+    <div className="auth-container">
+      <AuthenticatedTemplate>
+        <div className="p-4 bg-white rounded shadow">
+          <span className="font-semibold">Authenticated</span>
+          <button
+            onClick={handleLogout}
+            className="ml-4 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+          >
+            Logout
+          </button>
+        </div>
+      </AuthenticatedTemplate>
+      <UnauthenticatedTemplate>
+        <div className="p-4 bg-white rounded shadow">
+          <button
+            onClick={handleLogin}
+            className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+          >
+            Login with TAS SSO
+          </button>
+        </div>
+      </UnauthenticatedTemplate>
+    </div>
+  );
+};
+
+export default Auth;
+```
