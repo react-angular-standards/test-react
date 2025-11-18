@@ -125,7 +125,35 @@ const useCustomQuerySelections = (tests: Test[]) => {
     return expression;
   };
 
-  // Handle channel selection in custom query
+  // Handle adding a single channel or constant to expression
+  const handleAddToExpression = (
+    testName: string,
+    configName: string,
+    value: string,
+  ) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) =>
+                  config.configName === configName
+                    ? {
+                        ...config,
+                        channelExpression: config.channelExpression
+                          ? `${config.channelExpression} ${value}`
+                          : value,
+                      }
+                    : config,
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
+  // Handle channel selection in custom query (keeping for compatibility)
   const handleCustomQueryChannelSelect = (
     testName: string,
     configName: string,
@@ -382,6 +410,7 @@ const useCustomQuerySelections = (tests: Test[]) => {
     handleCustomQueryTestAccordionToggle,
     handleCustomQueryConfigAccordionToggle,
     handleCustomQueryTimeChange,
+    handleAddToExpression,
     handleCustomQueryChannelSelect,
     handleAddOperator,
     handleClearOperators,
