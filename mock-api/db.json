@@ -1,0 +1,92 @@
+{
+  "all-test-names": {
+    "TestName": [
+      "Battery_Test_01",
+      "Battery_Test_02",
+      "Motor_Performance_Test",
+      "Sensor_Calibration_Test"
+    ]
+  },
+  "configs": {
+    "Battery_Test_01": {
+      "ConfigName": ["Config_A", "Config_B", "Config_C"]
+    },
+    "Battery_Test_02": {
+      "ConfigName": ["Config_X", "Config_Y"]
+    },
+    "Motor_Performance_Test": {
+      "ConfigName": ["Standard", "High_Load"]
+    },
+    "Sensor_Calibration_Test": {
+      "ConfigName": ["Default", "Precision"]
+    }
+  },
+  "test-config-details": {
+    "Battery_Test_01_Config_A": {
+      "testStartTime": "2025-01-01T08:00:00Z",
+      "testEndTime": "2025-01-01T10:00:00Z",
+      "details": [
+        {
+          "cardType": "Voltage",
+          "channels": [1, 2, 3, 4]
+        },
+        {
+          "cardType": "Current",
+          "channels": [5, 6, 7, 8]
+        },
+        {
+          "cardType": "Temperature",
+          "channels": [9, 10]
+        }
+      ]
+    },
+    "Battery_Test_01_Config_B": {
+      "testStartTime": "2025-01-02T09:00:00Z",
+      "testEndTime": "2025-01-02T11:30:00Z",
+      "details": [
+        {
+          "cardType": "Voltage",
+          "channels": [1, 2, 3]
+        },
+        {
+          "cardType": "Current",
+          "channels": [5, 6]
+        }
+      ]
+    },
+    "Battery_Test_02_Config_X": {
+      "testStartTime": "2025-01-03T10:00:00Z",
+      "testEndTime": "2025-01-03T12:00:00Z",
+      "details": [
+        {
+          "cardType": "Voltage",
+          "channels": [1, 2, 3, 4, 5]
+        },
+        {
+          "cardType": "Temperature",
+          "channels": [10, 11, 12]
+        }
+      ]
+    },
+    "Motor_Performance_Test_Standard": {
+      "testStartTime": "2025-01-04T08:30:00Z",
+      "testEndTime": "2025-01-04T10:30:00Z",
+      "details": [
+        {
+          "cardType": "RPM",
+          "channels": [15, 16]
+        },
+        {
+          "cardType": "Torque",
+          "channels": [20, 21]
+        },
+        {
+          "cardType": "Temperature",
+          "channels": [25, 26, 27]
+        }
+      ]
+    }
+  },
+  "filter-data": [],
+  "custom-query-data": []
+}
