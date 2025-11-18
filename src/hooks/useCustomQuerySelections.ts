@@ -110,11 +110,30 @@ const useCustomQuerySelections = (tests: Test[]) => {
     );
   };
 
-  const handleChannelExpressionChange = (
+  // Build channel expression from selected channels and operators
+  const buildChannelExpression = (
+    channels: number[],
+    operators: string[],
+  ): string => {
+    if (channels.length === 0) return "";
+    if (channels.length === 1) return channels[0].toString();
+    let expression = channels[0].toString();
+    for (let i = 1; i < channels.length; i++) {
+      const operator = operators[i - 1] || "+";
+      expression += ` ${operator} ${channels[i]}`;
+    }
+    return expression;
+  };
+
+  // Handle channel selection in custom query
+  const handleCustomQueryChannelSelect = (
     testName: string,
     configName: string,
-    value: string,
+    selected: MultiValue<SelectOption> | null,
   ) => {
+    const selectedChannels = selected
+      ? selected.map((option) => Number(option.value))
+      : [];
     setCustomQueryTests((prev) =>
       prev.map((sel) =>
         sel.testName === testName
@@ -123,7 +142,76 @@ const useCustomQuerySelections = (tests: Test[]) => {
               customQueryConfigs: sel.customQueryConfigs.map(
                 (config: CustomQueryConfig) =>
                   config.configName === configName
-                    ? { ...config, channelExpression: value }
+                    ? {
+                        ...config,
+                        selectedChannels,
+                        channelExpression: buildChannelExpression(
+                          selectedChannels,
+                          config.selectedOperators,
+                        ),
+                      }
+                    : config,
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
+  // Add operator to expression
+  const handleAddOperator = (
+    testName: string,
+    configName: string,
+    operator: string,
+  ) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) => {
+                  if (config.configName === configName) {
+                    const newOperators = [
+                      ...config.selectedOperators,
+                      operator,
+                    ];
+                    return {
+                      ...config,
+                      selectedOperators: newOperators,
+                      channelExpression: buildChannelExpression(
+                        config.selectedChannels,
+                        newOperators,
+                      ),
+                    };
+                  }
+                  return config;
+                },
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
+  // Clear operators
+  const handleClearOperators = (testName: string, configName: string) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) =>
+                  config.configName === configName
+                    ? {
+                        ...config,
+                        selectedOperators: [],
+                        channelExpression: buildChannelExpression(
+                          config.selectedChannels,
+                          [],
+                        ),
+                      }
                     : config,
               ),
             }
@@ -166,6 +254,8 @@ const useCustomQuerySelections = (tests: Test[]) => {
               customQueryConfigs: configNames.map((config: string) => ({
                 configName: config,
                 isExpanded: false,
+                selectedChannels: [],
+                selectedOperators: [],
                 channelExpression: "",
                 outputChannelName: "",
                 startTime: null,
@@ -213,6 +303,8 @@ const useCustomQuerySelections = (tests: Test[]) => {
           (config: CustomQueryConfig) => ({
             ...config,
             isExpanded: false,
+            selectedChannels: [],
+            selectedOperators: [],
             channelExpression: "",
             outputChannelName: "",
             startTime: null,
@@ -223,33 +315,6 @@ const useCustomQuerySelections = (tests: Test[]) => {
     );
   };
 
-  const validateChannelExpression = (
-    expression: string,
-  ): { isValid: boolean; error?: string } => {
-    if (!expression.trim()) {
-      return { isValid: false, error: "Expression cannot be empty" };
-    }
-    // Allow numbers, operators (+, -, *, /), parentheses, and spaces
-    const validPattern = /^[\d\s+\-*/().]+$/;
-    if (!validPattern.test(expression)) {
-      return {
-        isValid: false,
-        error:
-          "Expression can only contain numbers, operators (+, -, *, /), and parentheses",
-      };
-    }
-    // Check for valid channel numbers
-    const tokens = expression.split(/[\s+\-*/()]+/).filter((t) => t);
-    const hasNumbers = tokens.some((token) => /^\d+$/.test(token));
-    if (!hasNumbers) {
-      return {
-        isValid: false,
-        error: "Expression must contain at least one channel number",
-      };
-    }
-    return { isValid: true };
-  };
-
   return {
     customQueryTests,
     setCustomQueryTests,
@@ -258,12 +323,13 @@ const useCustomQuerySelections = (tests: Test[]) => {
     handleCustomQueryTestAccordionToggle,
     handleCustomQueryConfigAccordionToggle,
     handleCustomQueryTimeChange,
-    handleChannelExpressionChange,
+    handleCustomQueryChannelSelect,
+    handleAddOperator,
+    handleClearOperators,
     handleOutputChannelNameChange,
     updateCustomQueryConfigs,
     updateCustomQueryTime,
     clearAllCustomQuerySelections,
-    validateChannelExpression,
   };
 };
 

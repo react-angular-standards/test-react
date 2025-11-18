@@ -74,6 +74,7 @@ const HistoricalDataRefactored: React.FC = () => {
     configs,
     cards,
     channels,
+    allChannels,
     loading,
     error,
     setError,
@@ -103,12 +104,13 @@ const HistoricalDataRefactored: React.FC = () => {
     handleCustomQueryTestAccordionToggle,
     handleCustomQueryConfigAccordionToggle,
     handleCustomQueryTimeChange,
-    handleChannelExpressionChange,
+    handleCustomQueryChannelSelect,
+    handleAddOperator,
+    handleClearOperators,
     handleOutputChannelNameChange,
     updateCustomQueryConfigs,
     updateCustomQueryTime,
     clearAllCustomQuerySelections,
-    validateChannelExpression,
   } = useCustomQuerySelections(tests);
 
   // Fetch configs when test is selected (for both tabs)
@@ -256,10 +258,10 @@ const HistoricalDataRefactored: React.FC = () => {
     customQueryTests.forEach((sel) => {
       if (sel.isSelected) {
         sel.customQueryConfigs.forEach((config) => {
-          const validation = validateChannelExpression(
-            config.channelExpression,
-          );
-          if (validation.isValid && config.outputChannelName.trim()) {
+          if (
+            config.channelExpression.trim() &&
+            config.outputChannelName.trim()
+          ) {
             selectedCustomQueriesList.push({
               testName: sel.testName,
               configName: config.configName,
@@ -439,6 +441,16 @@ const HistoricalDataRefactored: React.FC = () => {
         label: test.TestName,
       })),
     [tests],
+  );
+
+  // Create all channel options for custom query
+  const allChannelOptions: SelectOption[] = useMemo(
+    () =>
+      allChannels.map((channel) => ({
+        value: channel.toString(),
+        label: `Ch: ${channel}`,
+      })),
+    [allChannels],
   );
 
   const selectedTestsCount = testSelections.filter(
@@ -677,6 +689,7 @@ const HistoricalDataRefactored: React.FC = () => {
                       tests={tests}
                       customQueryTests={customQueryTests}
                       testOptions={testOptions}
+                      allChannelOptions={allChannelOptions}
                       selectedCustomQueryTestsCount={
                         selectedCustomQueryTestsCount
                       }
@@ -688,9 +701,10 @@ const HistoricalDataRefactored: React.FC = () => {
                       }
                       onConfigAccordionToggle={handleCustomQueryConfigToggle}
                       onTimeChange={handleCustomQueryTimeChange}
-                      onChannelExpressionChange={handleChannelExpressionChange}
+                      onChannelSelect={handleCustomQueryChannelSelect}
+                      onAddOperator={handleAddOperator}
+                      onClearOperators={handleClearOperators}
                       onOutputChannelNameChange={handleOutputChannelNameChange}
-                      validateChannelExpression={validateChannelExpression}
                       onSubmit={handleSubmit}
                       onClear={handleClear}
                     />

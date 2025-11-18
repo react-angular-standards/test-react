@@ -11,6 +11,8 @@ import {
   Switch,
   Divider,
   TextField,
+  ButtonGroup,
+  Paper,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -28,6 +30,7 @@ interface CustomQueryDrawerContentProps {
   tests: Test[];
   customQueryTests: CustomQueryTest[];
   testOptions: SelectOption[];
+  allChannelOptions: SelectOption[];
   selectedCustomQueryTestsCount: number;
   error: string | null;
   onTestSelect: (selected: any, action: any) => void;
@@ -40,20 +43,22 @@ interface CustomQueryDrawerContentProps {
     field: "startTime" | "endTime",
     value: any,
   ) => void;
-  onChannelExpressionChange: (
+  onChannelSelect: (
     testName: string,
     configName: string,
-    value: string,
+    selected: any,
   ) => void;
+  onAddOperator: (
+    testName: string,
+    configName: string,
+    operator: string,
+  ) => void;
+  onClearOperators: (testName: string, configName: string) => void;
   onOutputChannelNameChange: (
     testName: string,
     configName: string,
     value: string,
   ) => void;
-  validateChannelExpression: (expression: string) => {
-    isValid: boolean;
-    error?: string;
-  };
   onSubmit: () => void;
   onClear: () => void;
 }
@@ -63,6 +68,7 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
   tests,
   customQueryTests,
   testOptions,
+  allChannelOptions,
   selectedCustomQueryTestsCount,
   error,
   onTestSelect,
@@ -70,9 +76,10 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
   onTestAccordionToggle,
   onConfigAccordionToggle,
   onTimeChange,
-  onChannelExpressionChange,
+  onChannelSelect,
+  onAddOperator,
+  onClearOperators,
   onOutputChannelNameChange,
-  validateChannelExpression,
   onSubmit,
   onClear,
 }) => {
@@ -179,9 +186,6 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                     <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
                       {selection.customQueryConfigs.map(
                         (config: CustomQueryConfig) => {
-                          const validation = validateChannelExpression(
-                            config.channelExpression,
-                          );
 
                           return (
                             <Accordion
@@ -417,7 +421,8 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                         Add operators between channels (you need{" "}
                                         {config.selectedChannels.length - 1}{" "}
                                         operator
-                                        {config.selectedChannels.length - 1 !== 1
+                                        {config.selectedChannels.length - 1 !==
+                                        1
                                           ? "s"
                                           : ""}
                                         )
@@ -505,7 +510,8 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                         minHeight: "30px",
                                       }}
                                     >
-                                      {config.channelExpression || "No expression yet"}
+                                      {config.channelExpression ||
+                                        "No expression yet"}
                                     </Paper>
                                   </Box>
 
