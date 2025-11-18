@@ -712,7 +712,6 @@ const HistoricalDataRefactored: React.FC = () => {
                       }
                       onConfigAccordionToggle={handleCustomQueryConfigToggle}
                       onTimeChange={handleCustomQueryTimeChange}
-                      onAddToExpression={handleAddToExpression}
                       onChannelSelect={handleCustomQueryChannelSelect}
                       onAddOperator={handleAddOperator}
                       onClearOperators={handleClearOperators}
