@@ -116,11 +116,11 @@ const useCustomQuerySelections = (tests: Test[]) => {
     operators: string[],
   ): string => {
     if (channels.length === 0) return "";
-    if (channels.length === 1) return channels[0].toString();
-    let expression = channels[0].toString();
+    if (channels.length === 1) return `id_${channels[0]}`;
+    let expression = `id_${channels[0]}`;
     for (let i = 1; i < channels.length; i++) {
       const operator = operators[i - 1] || "+";
-      expression += ` ${operator} ${channels[i]}`;
+      expression += ` ${operator} id_${channels[i]}`;
     }
     return expression;
   };
@@ -220,6 +220,63 @@ const useCustomQuerySelections = (tests: Test[]) => {
     );
   };
 
+  // Handle constant value change
+  const handleConstantValueChange = (
+    testName: string,
+    configName: string,
+    value: string,
+  ) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) =>
+                  config.configName === configName
+                    ? { ...config, constantValue: value }
+                    : config,
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
+  // Add constant to expression
+  const handleAddConstant = (
+    testName: string,
+    configName: string,
+    operator: string,
+  ) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) => {
+                  if (
+                    config.configName === configName &&
+                    config.constantValue
+                  ) {
+                    const newExpression = config.channelExpression
+                      ? `${config.channelExpression} ${operator} ${config.constantValue}`
+                      : config.constantValue;
+                    return {
+                      ...config,
+                      channelExpression: newExpression,
+                    };
+                  }
+                  return config;
+                },
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
   const handleOutputChannelNameChange = (
     testName: string,
     configName: string,
@@ -257,6 +314,7 @@ const useCustomQuerySelections = (tests: Test[]) => {
                 selectedChannels: [],
                 selectedOperators: [],
                 channelExpression: "",
+                constantValue: "",
                 outputChannelName: "",
                 startTime: null,
                 endTime: null,
@@ -306,6 +364,7 @@ const useCustomQuerySelections = (tests: Test[]) => {
             selectedChannels: [],
             selectedOperators: [],
             channelExpression: "",
+            constantValue: "",
             outputChannelName: "",
             startTime: null,
             endTime: null,
@@ -326,6 +385,8 @@ const useCustomQuerySelections = (tests: Test[]) => {
     handleCustomQueryChannelSelect,
     handleAddOperator,
     handleClearOperators,
+    handleConstantValueChange,
+    handleAddConstant,
     handleOutputChannelNameChange,
     updateCustomQueryConfigs,
     updateCustomQueryTime,

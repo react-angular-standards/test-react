@@ -56,7 +56,12 @@ const HistoricalDataRefactored: React.FC = () => {
   const [filteredData, setFilteredData] = useState<DataRow[]>([]);
   const [selectedConfigs, setSelectedConfigs] = useState<SelectedConfig[]>([]);
   const [selectedCustomQueries, setSelectedCustomQueries] = useState<
-    { testName: string; configName: string; config: CustomQueryConfig }[]
+    {
+      testName: string;
+      configName: string;
+      config: CustomQueryConfig;
+      pushToDB: boolean;
+    }[]
   >([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -107,6 +112,8 @@ const HistoricalDataRefactored: React.FC = () => {
     handleCustomQueryChannelSelect,
     handleAddOperator,
     handleClearOperators,
+    handleConstantValueChange,
+    handleAddConstant,
     handleOutputChannelNameChange,
     updateCustomQueryConfigs,
     updateCustomQueryTime,
@@ -202,6 +209,7 @@ const HistoricalDataRefactored: React.FC = () => {
           cq.testName,
           cq.configName,
           cq.config,
+          cq.pushToDB,
         );
         allData = allData.concat(customData);
         total += customData.length;
@@ -227,12 +235,13 @@ const HistoricalDataRefactored: React.FC = () => {
   }, [currentPage, selectedConfigs, selectedCustomQueries, pageSize]);
 
   // Handle submit
-  const handleSubmit = async () => {
+  const handleSubmit = async (pushToDB: boolean = false) => {
     const selectedConfigsList: SelectedConfig[] = [];
     const selectedCustomQueriesList: {
       testName: string;
       configName: string;
       config: CustomQueryConfig;
+      pushToDB: boolean;
     }[] = [];
 
     // Collect filter selections
@@ -266,6 +275,7 @@ const HistoricalDataRefactored: React.FC = () => {
               testName: sel.testName,
               configName: config.configName,
               config: config,
+              pushToDB: pushToDB,
             });
           }
         });
@@ -704,6 +714,8 @@ const HistoricalDataRefactored: React.FC = () => {
                       onChannelSelect={handleCustomQueryChannelSelect}
                       onAddOperator={handleAddOperator}
                       onClearOperators={handleClearOperators}
+                      onConstantValueChange={handleConstantValueChange}
+                      onAddConstant={handleAddConstant}
                       onOutputChannelNameChange={handleOutputChannelNameChange}
                       onSubmit={handleSubmit}
                       onClear={handleClear}

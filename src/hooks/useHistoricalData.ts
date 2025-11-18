@@ -27,7 +27,8 @@ const useHistoricalData = (apiBase: string) => {
       try {
         setLoading(true);
         const response = await fetch(`${apiBase}/all-test-names`);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok)
+          throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         const testNames = data.TestName || [];
         setTests(testNames.map((name: string) => ({ TestName: name })));
@@ -48,7 +49,8 @@ const useHistoricalData = (apiBase: string) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ TestName: testName }),
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       const configNames = data.ConfigName || [];
       setConfigs((prev) => ({ ...prev, [testName]: configNames }));
@@ -59,20 +61,24 @@ const useHistoricalData = (apiBase: string) => {
     }
   };
 
-  const fetchTestConfigDetails = async (testName: string, configName: string) => {
+  const fetchTestConfigDetails = async (
+    testName: string,
+    configName: string,
+  ) => {
     const key = `${testName}_${configName}`;
     if (!cards[key]) {
       try {
         const response = await fetch(
           `${apiBase}/test-config-details?TestName=${encodeURIComponent(
-            testName
+            testName,
           )}&ConfigName=${encodeURIComponent(configName)}`,
           {
             method: "GET",
             headers: { Accept: "application/json" },
-          }
+          },
         );
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok)
+          throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
 
         const cardList = data.details.map((detail: any) => detail.cardType);
@@ -81,7 +87,8 @@ const useHistoricalData = (apiBase: string) => {
         const channelsMap: Record<string, number[]> = {};
         const allChannelsSet = new Set<number>();
         data.details.forEach((detail: any) => {
-          channelsMap[`${testName}_${configName}_${detail.cardType}`] = detail.channels;
+          channelsMap[`${testName}_${configName}_${detail.cardType}`] =
+            detail.channels;
           detail.channels.forEach((ch: number) => allChannelsSet.add(ch));
         });
         setChannels((prev) => ({ ...prev, ...channelsMap }));
@@ -93,7 +100,9 @@ const useHistoricalData = (apiBase: string) => {
           endTime: data.testEndTime ? dayjs(data.testEndTime) : null,
         };
       } catch (err: any) {
-        setError(`Failed to fetch test config details for ${testName} - ${configName}.`);
+        setError(
+          `Failed to fetch test config details for ${testName} - ${configName}.`,
+        );
         return null;
       }
     }
@@ -104,7 +113,7 @@ const useHistoricalData = (apiBase: string) => {
     page: number,
     pageSize: number,
     testName: string,
-    configSelection: ConfigSelection
+    configSelection: ConfigSelection,
   ) => {
     const offset = page * pageSize;
     const requestBody: FilterRequestBody = {
@@ -127,7 +136,8 @@ const useHistoricalData = (apiBase: string) => {
       const cardList = cards[key] || [];
       requestBody.details = cardList.map((card: string) => ({
         cardType: card,
-        channels: channels[`${testName}_${configSelection.configName}_${card}`] || [],
+        channels:
+          channels[`${testName}_${configSelection.configName}_${card}`] || [],
       }));
     }
 
@@ -152,13 +162,15 @@ const useHistoricalData = (apiBase: string) => {
   const fetchCustomQueryData = async (
     testName: string,
     configName: string,
-    config: CustomQueryConfig
+    config: CustomQueryConfig,
+    pushToDB: boolean = false,
   ) => {
     const requestBody: CustomQueryRequest = {
       TestName: testName,
       ConfigName: configName,
       ChannelOperation: config.channelExpression,
       outputChannelName: config.outputChannelName,
+      pushToDB: pushToDB,
       startTime: config.startTime?.toISOString(),
       endTime: config.endTime?.toISOString(),
     };

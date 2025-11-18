@@ -54,12 +54,22 @@ interface CustomQueryDrawerContentProps {
     operator: string,
   ) => void;
   onClearOperators: (testName: string, configName: string) => void;
+  onConstantValueChange: (
+    testName: string,
+    configName: string,
+    value: string,
+  ) => void;
+  onAddConstant: (
+    testName: string,
+    configName: string,
+    operator: string,
+  ) => void;
   onOutputChannelNameChange: (
     testName: string,
     configName: string,
     value: string,
   ) => void;
-  onSubmit: () => void;
+  onSubmit: (pushToDB: boolean) => void;
   onClear: () => void;
 }
 
@@ -79,6 +89,8 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
   onChannelSelect,
   onAddOperator,
   onClearOperators,
+  onConstantValueChange,
+  onAddConstant,
   onOutputChannelNameChange,
   onSubmit,
   onClear,
@@ -186,7 +198,6 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                     <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
                       {selection.customQueryConfigs.map(
                         (config: CustomQueryConfig) => {
-
                           return (
                             <Accordion
                               key={config.configName}
@@ -489,6 +500,85 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                     </Box>
                                   )}
 
+                                  {/* Constant Value Section */}
+                                  <Box sx={{ mt: 1.5 }}>
+                                    <Typography
+                                      variant="subtitle2"
+                                      sx={{
+                                        mb: 0.5,
+                                        fontWeight: 600,
+                                        fontSize: "0.85rem",
+                                      }}
+                                    >
+                                      Add Constant (Optional)
+                                    </Typography>
+                                    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                                      <TextField
+                                        size="small"
+                                        placeholder="Enter constant value"
+                                        value={config.constantValue || ""}
+                                        onChange={(e) =>
+                                          onConstantValueChange(
+                                            selection.testName,
+                                            config.configName,
+                                            e.target.value,
+                                          )
+                                        }
+                                        sx={{ flex: 1 }}
+                                      />
+                                      <ButtonGroup size="small">
+                                        <Button
+                                          onClick={() =>
+                                            onAddConstant(
+                                              selection.testName,
+                                              config.configName,
+                                              "+",
+                                            )
+                                          }
+                                          disabled={!config.constantValue}
+                                        >
+                                          +
+                                        </Button>
+                                        <Button
+                                          onClick={() =>
+                                            onAddConstant(
+                                              selection.testName,
+                                              config.configName,
+                                              "-",
+                                            )
+                                          }
+                                          disabled={!config.constantValue}
+                                        >
+                                          -
+                                        </Button>
+                                        <Button
+                                          onClick={() =>
+                                            onAddConstant(
+                                              selection.testName,
+                                              config.configName,
+                                              "*",
+                                            )
+                                          }
+                                          disabled={!config.constantValue}
+                                        >
+                                          ×
+                                        </Button>
+                                        <Button
+                                          onClick={() =>
+                                            onAddConstant(
+                                              selection.testName,
+                                              config.configName,
+                                              "/",
+                                            )
+                                          }
+                                          disabled={!config.constantValue}
+                                        >
+                                          ÷
+                                        </Button>
+                                      </ButtonGroup>
+                                    </Box>
+                                  </Box>
+
                                   <Box sx={{ mt: 1.5 }}>
                                     <Typography
                                       variant="subtitle2"
@@ -582,13 +672,24 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
         <Button
           variant="contained"
           color="primary"
-          onClick={onSubmit}
+          onClick={() => onSubmit(false)}
           disabled={
             loading || tests.length === 0 || selectedCustomQueryTestsCount === 0
           }
-          sx={{ minWidth: 80, fontWeight: 600, textTransform: "none" }}
+          sx={{ minWidth: 100, fontWeight: 600, textTransform: "none" }}
         >
-          Apply
+          View
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => onSubmit(true)}
+          disabled={
+            loading || tests.length === 0 || selectedCustomQueryTestsCount === 0
+          }
+          sx={{ minWidth: 120, fontWeight: 600, textTransform: "none" }}
+        >
+          Save & View
         </Button>
         <Button
           variant="outlined"
@@ -596,7 +697,7 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
           disabled={loading || selectedCustomQueryTestsCount === 0}
           sx={{ minWidth: 80, textTransform: "none" }}
         >
-          Clear
+          Cancel
         </Button>
       </Box>
     </Box>

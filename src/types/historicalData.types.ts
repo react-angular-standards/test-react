@@ -27,6 +27,7 @@ export interface CustomQueryConfig {
   selectedChannels: number[];
   selectedOperators: string[];
   channelExpression: string;
+  constantValue: string;
   outputChannelName: string;
   startTime: Dayjs | null;
   endTime: Dayjs | null;
@@ -82,6 +83,7 @@ export interface CustomQueryRequest {
   ConfigName: string;
   ChannelOperation: string;
   outputChannelName: string;
+  pushToDB: boolean;
   startTime?: string;
   endTime?: string;
 }
