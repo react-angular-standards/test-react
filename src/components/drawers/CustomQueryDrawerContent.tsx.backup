@@ -371,7 +371,7 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                       fontSize: "0.85rem",
                                     }}
                                   >
-                                    Channel Selection
+                                    Channel Expression
                                   </Typography>
                                   <Typography
                                     variant="caption"
@@ -382,132 +382,42 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                       display: "block",
                                     }}
                                   >
-                                    Select channels in order, then add operators
-                                    between them
+                                    Build expression using channels and
+                                    operators (+, -, *, /, parentheses)
                                   </Typography>
-                                  <CustomSelect
-                                    isMulti={true}
-                                    options={allChannelOptions}
-                                    value={allChannelOptions.filter((option) =>
-                                      config.selectedChannels.includes(
-                                        Number(option.value),
-                                      ),
-                                    )}
-                                    onChange={(selected, action) =>
-                                      onChannelSelect(
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    placeholder="e.g., 10104000 + 10104001 - 10104002"
+                                    value={config.channelExpression}
+                                    onChange={(e) =>
+                                      onChannelExpressionChange(
                                         selection.testName,
                                         config.configName,
-                                        selected,
+                                        e.target.value,
                                       )
                                     }
-                                    placeholder="Select channels..."
-                                  />
-
-                                  {config.selectedChannels.length > 1 && (
-                                    <Box sx={{ mt: 1.5 }}>
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          fontSize: "0.65rem",
-                                          color: "#666",
-                                          mb: 0.5,
-                                          display: "block",
-                                        }}
-                                      >
-                                        Add operators between channels (you need{" "}
-                                        {config.selectedChannels.length - 1}{" "}
-                                        operator
-                                        {config.selectedChannels.length - 1 !== 1
-                                          ? "s"
-                                          : ""}
-                                        )
-                                      </Typography>
-                                      <ButtonGroup size="small" sx={{ mb: 1 }}>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "+",
-                                            )
-                                          }
-                                        >
-                                          + Add
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "-",
-                                            )
-                                          }
-                                        >
-                                          - Subtract
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "*",
-                                            )
-                                          }
-                                        >
-                                          × Multiply
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "/",
-                                            )
-                                          }
-                                        >
-                                          ÷ Divide
-                                        </Button>
-                                      </ButtonGroup>
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        onClick={() =>
-                                          onClearOperators(
-                                            selection.testName,
-                                            config.configName,
-                                          )
-                                        }
-                                        sx={{ ml: 1 }}
-                                      >
-                                        Clear
-                                      </Button>
-                                    </Box>
-                                  )}
-
-                                  <Box sx={{ mt: 1.5 }}>
-                                    <Typography
-                                      variant="subtitle2"
-                                      sx={{
-                                        mb: 0.5,
-                                        fontWeight: 600,
-                                        fontSize: "0.85rem",
-                                      }}
-                                    >
-                                      Expression Preview
-                                    </Typography>
-                                    <Paper
-                                      sx={{
-                                        p: 1,
-                                        bgcolor: "#f5f5f5",
-                                        border: "1px solid #ddd",
-                                        fontFamily: "monospace",
+                                    error={
+                                      config.channelExpression.trim() !== "" &&
+                                      !validation.isValid
+                                    }
+                                    helperText={
+                                      config.channelExpression.trim() !== "" &&
+                                      !validation.isValid
+                                        ? validation.error
+                                        : "Type channel numbers and operators"
+                                    }
+                                    sx={{
+                                      mb: 1.5,
+                                      "& .MuiInputBase-input": {
                                         fontSize: "0.75rem",
-                                        minHeight: "30px",
-                                      }}
-                                    >
-                                      {config.channelExpression || "No expression yet"}
-                                    </Paper>
-                                  </Box>
+                                        fontFamily: "monospace",
+                                      },
+                                      "& .MuiFormHelperText-root": {
+                                        fontSize: "0.65rem",
+                                      },
+                                    }}
+                                  />
 
                                   <Typography
                                     variant="subtitle2"

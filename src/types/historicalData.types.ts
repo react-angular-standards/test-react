@@ -24,6 +24,8 @@ export interface DataRow {
 export interface CustomQueryConfig {
   configName: string;
   isExpanded: boolean;
+  selectedChannels: number[];
+  selectedOperators: string[];
   channelExpression: string;
   outputChannelName: string;
   startTime: Dayjs | null;
