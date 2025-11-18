@@ -599,7 +599,14 @@ const HistoricalDataRefactored: React.FC = () => {
                     rows={filteredData}
                     columns={columns}
                     loading={loading || dataLoading}
-                    hideFooter={true}
+                    paginationMode="server"
+                    rowCount={totalCount}
+                    paginationModel={{ page: currentPage, pageSize: pageSize }}
+                    onPaginationModelChange={(model) => {
+                      setCurrentPage(model.page);
+                      setPageSize(model.pageSize);
+                    }}
+                    pageSizeOptions={[10, 20, 50, 100]}
                     sx={{
                       boxShadow: 1,
                       borderRadius: 1,
