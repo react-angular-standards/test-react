@@ -113,6 +113,7 @@ const HistoricalDataRefactored: React.FC = () => {
     handleCustomQueryChannelSelect,
     handleAddOperator,
     handleClearOperators,
+    handleExpressionChange,
     handleConstantValueChange,
     handleAddConstant,
     handleOutputChannelNameChange,
@@ -722,6 +723,7 @@ const HistoricalDataRefactored: React.FC = () => {
                       onChannelSelect={handleCustomQueryChannelSelect}
                       onAddOperator={handleAddOperator}
                       onClearOperators={handleClearOperators}
+                      onExpressionChange={handleExpressionChange}
                       onConstantValueChange={handleConstantValueChange}
                       onAddConstant={handleAddConstant}
                       onOutputChannelNameChange={handleOutputChannelNameChange}

@@ -24,6 +24,7 @@ import {
   CustomQueryConfig,
 } from "../../types/historicalData.types";
 import CustomSelect from "../../component/Widgets/CustomSelect";
+import SmartExpressionInput from "../SmartExpressionInput";
 
 interface CustomQueryDrawerContentProps {
   loading: boolean;
@@ -54,6 +55,11 @@ interface CustomQueryDrawerContentProps {
     operator: string,
   ) => void;
   onClearOperators: (testName: string, configName: string) => void;
+  onExpressionChange: (
+    testName: string,
+    configName: string,
+    value: string,
+  ) => void;
   onConstantValueChange: (
     testName: string,
     configName: string,
@@ -89,6 +95,7 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
   onChannelSelect,
   onAddOperator,
   onClearOperators,
+  onExpressionChange,
   onConstantValueChange,
   onAddConstant,
   onOutputChannelNameChange,
@@ -378,127 +385,18 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                 <Divider sx={{ my: 1 }} />
 
                                 <Box>
-                                  <Typography
-                                    variant="subtitle2"
-                                    sx={{
-                                      mb: 1,
-                                      fontWeight: 600,
-                                      fontSize: "0.85rem",
-                                    }}
-                                  >
-                                    Channel Selection
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      fontSize: "0.65rem",
-                                      color: "#666",
-                                      mb: 0.5,
-                                      display: "block",
-                                    }}
-                                  >
-                                    Select channels in order, then add operators
-                                    between them
-                                  </Typography>
-                                  <CustomSelect
-                                    isMulti={true}
-                                    options={allChannelOptions}
-                                    value={allChannelOptions.filter((option) =>
-                                      config.selectedChannels.includes(
-                                        Number(option.value),
-                                      ),
-                                    )}
-                                    onChange={(selected, action) =>
-                                      onChannelSelect(
+                                  <SmartExpressionInput
+                                    expression={config.channelExpression}
+                                    allChannelOptions={allChannelOptions}
+                                    onChange={(value) =>
+                                      onExpressionChange(
                                         selection.testName,
                                         config.configName,
-                                        selected,
+                                        value
                                       )
                                     }
-                                    placeholder="Select channels..."
+                                    placeholder="Type expression: e.g., id_1 + id_2 * 5"
                                   />
-
-                                  {config.selectedChannels.length > 1 && (
-                                    <Box sx={{ mt: 1.5 }}>
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          fontSize: "0.65rem",
-                                          color: "#666",
-                                          mb: 0.5,
-                                          display: "block",
-                                        }}
-                                      >
-                                        Add operators between channels (you need{" "}
-                                        {config.selectedChannels.length - 1}{" "}
-                                        operator
-                                        {config.selectedChannels.length - 1 !==
-                                        1
-                                          ? "s"
-                                          : ""}
-                                        )
-                                      </Typography>
-                                      <ButtonGroup size="small" sx={{ mb: 1 }}>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "+",
-                                            )
-                                          }
-                                        >
-                                          + Add
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "-",
-                                            )
-                                          }
-                                        >
-                                          - Subtract
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "*",
-                                            )
-                                          }
-                                        >
-                                          × Multiply
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            onAddOperator(
-                                              selection.testName,
-                                              config.configName,
-                                              "/",
-                                            )
-                                          }
-                                        >
-                                          ÷ Divide
-                                        </Button>
-                                      </ButtonGroup>
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        onClick={() =>
-                                          onClearOperators(
-                                            selection.testName,
-                                            config.configName,
-                                          )
-                                        }
-                                        sx={{ ml: 1 }}
-                                      >
-                                        Clear
-                                      </Button>
-                                    </Box>
-                                  )}
 
                                   {/* Constant Value Section */}
                                   <Box sx={{ mt: 1.5 }}>
@@ -512,7 +410,13 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                     >
                                       Add Constant (Optional)
                                     </Typography>
-                                    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        gap: 1,
+                                        alignItems: "center",
+                                      }}
+                                    >
                                       <TextField
                                         size="small"
                                         placeholder="Enter constant value"

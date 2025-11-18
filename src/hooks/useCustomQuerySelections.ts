@@ -248,6 +248,29 @@ const useCustomQuerySelections = (tests: Test[]) => {
     );
   };
 
+  // Handle direct expression change (from smart input)
+  const handleExpressionChange = (
+    testName: string,
+    configName: string,
+    value: string,
+  ) => {
+    setCustomQueryTests((prev) =>
+      prev.map((sel) =>
+        sel.testName === testName
+          ? {
+              ...sel,
+              customQueryConfigs: sel.customQueryConfigs.map(
+                (config: CustomQueryConfig) =>
+                  config.configName === configName
+                    ? { ...config, channelExpression: value }
+                    : config,
+              ),
+            }
+          : sel,
+      ),
+    );
+  };
+
   // Handle constant value change
   const handleConstantValueChange = (
     testName: string,
@@ -414,6 +437,7 @@ const useCustomQuerySelections = (tests: Test[]) => {
     handleCustomQueryChannelSelect,
     handleAddOperator,
     handleClearOperators,
+    handleExpressionChange,
     handleConstantValueChange,
     handleAddConstant,
     handleOutputChannelNameChange,
