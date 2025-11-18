@@ -1,4 +1,3 @@
-# Historical Data React Application
 
 A React TypeScript application for visualizing and analyzing historical test data with filtering and custom query capabilities.
 
