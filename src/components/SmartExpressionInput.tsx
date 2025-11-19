@@ -27,7 +27,9 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState(expression);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
   const [cursorPosition, setCursorPosition] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,14 +68,17 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     const currentToken = getLastToken(value, position);
 
     if (currentToken.length > 0) {
-      const newSuggestions: string[] = [];
+      const newSuggestions: Array<{ value: string; label: string }> = [];
 
-      // Suggest channel IDs (without id_ prefix in UI)
+      // Suggest channel IDs (with Ch: prefix in display)
       if (/^\d/.test(currentToken)) {
         allChannelOptions.forEach((opt) => {
           const channelId = String(opt.value);
           if (channelId.includes(currentToken)) {
-            newSuggestions.push(channelId);
+            newSuggestions.push({
+              value: channelId,
+              label: opt.label || `Ch: ${channelId}`,
+            });
           }
         });
       }
@@ -81,7 +86,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       // Suggest operators
       operators.forEach((op) => {
         if (op.includes(currentToken) && currentToken.length === 1) {
-          newSuggestions.push(op);
+          newSuggestions.push({ value: op, label: op });
         }
       });
 
@@ -89,7 +94,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       if (/^\d/.test(currentToken)) {
         commonConstants.forEach((constant) => {
           if (constant.startsWith(currentToken)) {
-            newSuggestions.push(constant);
+            newSuggestions.push({ value: constant, label: constant });
           }
         });
       }
@@ -101,7 +106,10 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       const lastChar = value[position - 1];
       if (!value || operators.includes(lastChar) || lastChar === " ") {
         setSuggestions(
-          allChannelOptions.slice(0, 10).map((opt) => String(opt.value)),
+          allChannelOptions.slice(0, 10).map((opt) => ({
+            value: String(opt.value),
+            label: opt.label || `Ch: ${opt.value}`,
+          })),
         );
         setShowSuggestions(true);
       } else {
@@ -110,15 +118,18 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
+  const handleSuggestionClick = (suggestion: {
+    value: string;
+    label: string;
+  }) => {
     const beforeCursor = inputValue.substring(0, cursorPosition);
     const afterCursor = inputValue.substring(cursorPosition);
     const currentToken = getLastToken(beforeCursor, cursorPosition);
 
-    // Replace the current token with the suggestion
+    // Replace the current token with the suggestion value (not label)
     const newValue =
       beforeCursor.substring(0, beforeCursor.length - currentToken.length) +
-      suggestion +
+      suggestion.value +
       " " +
       afterCursor;
 
@@ -168,7 +179,12 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           setCursorPosition(position);
           if (!value || value.endsWith(" ")) {
             setSuggestions(
-              allChannelOptions.slice(0, 10).map((opt) => String(opt.value)),
+              allChannelOptions
+                .slice(0, 10)
+                .map((opt) => ({
+                  value: String(opt.value),
+                  label: opt.label || `Ch: ${opt.value}`,
+                })),
             );
             setShowSuggestions(true);
           }
@@ -232,7 +248,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
                   sx={{ py: 0.5 }}
                 >
                   <ListItemText
-                    primary={suggestion}
+                    primary={suggestion.label}
                     primaryTypographyProps={{
                       fontFamily: "monospace",
                       fontSize: "0.85rem",
