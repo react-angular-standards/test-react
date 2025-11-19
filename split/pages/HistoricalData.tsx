@@ -25,145 +25,39 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+import DownloadIcon from "@mui/icons-material/Download";
+import { ThemeProvider } from "@mui/material/styles";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
 import { SingleValue, MultiValue, ActionMeta } from "react-select";
-import CustomSelect from "../component/Widgets/CustomSelect";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import CanvasJSReact from "@canvasjs/react-charts";
-import { UrlConstant } from "../component/util/UrlConstans";
-import DownloadIcon from "@mui/icons-material/Download";
 
-export interface SelectOption {
-  value: string | number;
-  label: string;
-}
+// Local imports
+import CustomSelect from "../../component/Widgets/CustomSelect";
+import { UrlConstant } from "../../component/util/UrlConstans";
+import { muiTheme } from "../theme/muiTheme";
+import { exportToCSV } from "../utils/csvExport";
+import {
+  Test,
+  DataRow,
+  SelectOption,
+  TestSelection,
+  ConfigSelection,
+  CardSelection,
+  SelectedConfig,
+  CustomQueryTest,
+  CustomQueryConfig,
+  FilterRequestBody,
+  CustomQueryRequest,
+  TestConfigDetailsResponse,
+  SeriesData,
+} from "../types/historicalData.types";
 
-export interface Test {
-  TestName: string;
-}
-
-export interface DataRow {
-  id: number;
-  TestName: string;
-  ConfigName: string;
-  Card?: string;
-  Channel: string;
-  Timestamp: string;
-  Value: number;
-  [key: string]: any; // Allow dynamic column access
-}
-
-// Custom query with channel expression
-export interface CustomQueryConfig {
-  configName: string;
-  isExpanded: boolean;
-  selectedChannels: number[];
-  selectedOperators: string[];
-  channelExpression: string;
-  outputChannelName: string;
-  startTime: Dayjs | null;
-  endTime: Dayjs | null;
-}
-
-export interface CustomQueryTest {
-  testName: string;
-  isSelected: boolean;
-  isExpanded: boolean;
-  customQueryConfigs: CustomQueryConfig[];
-}
-
-// Regular filter interfaces
-export interface CardSelection {
-  cardName: string;
-  selectedChannels: number[];
-}
-
-export interface ConfigSelection {
-  configName: string;
-  isExpanded: boolean;
-  cardSelections: CardSelection[];
-  startTime: Dayjs | null;
-  endTime: Dayjs | null;
-}
-
-export interface TestSelection {
-  testName: string;
-  isSelected: boolean;
-  isExpanded: boolean;
-  configSelections: ConfigSelection[];
-}
-
-export interface SelectedConfig {
-  testName: string;
-  configName: string;
-  configSelection: ConfigSelection;
-}
-
-export interface FilterRequestBody {
-  TestName: string;
-  ConfigName: string;
-  details: { cardType: string; channels: number[] }[];
-  limit?: number;
-  offset?: number;
-  startTime?: string;
-  endTime?: string;
-}
-
-// Custom query request
-export interface CustomQueryRequest {
-  TestName: string;
-  ConfigName: string;
-  ChannelOperation: string;
-  outputChannelName: string;
-  startTime?: string;
-  endTime?: string;
-}
-
-export interface TestConfigDetailsResponse {
-  TestName: string;
-  ConfigName: string;
-  testStartTime: string;
-  testEndTime: string;
-  details: { cardType: string; channels: number[] }[];
-}
-
-interface SeriesData {
-  type: string;
-  name: string;
-  showInLegend: boolean;
-  visible: boolean;
-  dataPoints: { x: Date; y: number }[];
-}
-
-// Material UI theme
-const muiTheme = createTheme({
-  components: {
-    MuiSelect: {
-      styleOverrides: {
-        select: { fontSize: "0.75rem", padding: "4px 8px" },
-      },
-    },
-    MuiInputBase: {
-      styleOverrides: { root: { fontSize: "0.75rem" } },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: { fontSize: "0.7rem", padding: "2px 6px", minWidth: "60px" },
-      },
-    },
-    MuiTypography: {
-      styleOverrides: { root: { fontSize: "0.85rem" } },
-    },
-    MuiFormControlLabel: {
-      styleOverrides: { label: { fontSize: "0.7rem" } },
-    },
-  },
-});
+const CanvasJSChart = CanvasJSReact.CanvasJSChart;
 
 const HistoricalData: React.FC = () => {
   // State
@@ -1149,60 +1043,13 @@ const HistoricalData: React.FC = () => {
     [chartData],
   );
 
-  const exportToCSV = () => {
-    if (filteredData.length === 0) {
-      setError("No data available to export");
-      return;
-    }
+  const handleExportCSV = () => {
+    const testName =
+      selectedConfigs.length > 0 ? selectedConfigs[0].testName : undefined;
+    const result = exportToCSV(filteredData, columns, testName);
 
-    try {
-      // Get column headers
-      const headers = columns.map((col) => col.headerName || col.field);
-      const headerRow = headers.join(",");
-
-      // Get data rows
-      const dataRows = filteredData.map((row) => {
-        return columns
-          .map((col) => {
-            const value = row[col.field];
-            // Handle values that contain commas or quotes
-            if (value === null || value === undefined) return "";
-            const stringValue = String(value);
-            if (
-              stringValue.includes(",") ||
-              stringValue.includes('"') ||
-              stringValue.includes("\n")
-            ) {
-              return `"${stringValue.replace(/"/g, '""')}"`;
-            }
-            return stringValue;
-          })
-          .join(",");
-      });
-
-      // Combine headers and data
-      const csvContent = [headerRow, ...dataRows].join("\n");
-
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-
-      // Generate filename with timestamp and test name
-      const timestamp = dayjs().format("YYYY-MM-DD_HH-mm-ss");
-      const testName =
-        selectedConfigs.length > 0 ? selectedConfigs[0].testName : "data";
-      const filename = `${testName}_${timestamp}.csv`;
-
-      link.setAttribute("href", url);
-      link.setAttribute("download", filename);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError("Failed to export CSV: " + err.message);
+    if (!result.success && result.error) {
+      setError(result.error);
     }
   };
 
@@ -1339,7 +1186,7 @@ const HistoricalData: React.FC = () => {
                     color="success"
                     size="small"
                     startIcon={<DownloadIcon />}
-                    onClick={exportToCSV}
+                    onClick={handleExportCSV}
                     disabled={filteredData.length === 0}
                     sx={{
                       fontSize: "0.75rem",

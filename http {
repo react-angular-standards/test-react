@@ -1,0 +1,509 @@
+http {
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+}
+
+server {
+    listen 80;
+    server_name console.connectvm.com;
+    return 301 https://$host$request_uri;
+}
+
+# Main console (assuming dashboard)
+server {
+    listen 443 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# VNC Service (noVNC proxy with WebSocket support)
+server {
+    listen 6080 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:6080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering off;
+        proxy_read_timeout 43200s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Alarming (Ceilometer or similar)
+server {
+    listen 8042 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8042;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Block Storage / Volumev3 (Cinder, shared port)
+server {
+    listen 8776 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8776;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Cloudformation (Heat CFN API)
+server {
+    listen 8000 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Compute (Nova)
+server {
+    listen 8774 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8774;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Container Infra (Magnum)
+server {
+    listen 9511 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:9511;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Identity (Keystone)
+server {
+    listen 5000 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Image (Glance)
+server {
+    listen 9292 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:9292;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Load Balancer (Octavia)
+server {
+    listen 9876 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:9876;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Metric (Gnocchi or similar)
+server {
+    listen 8041 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8041;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Network (Neutron)
+server {
+    listen 9696 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:9696;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Orchestration (Heat)
+server {
+    listen 8004 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8004;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Panel (possibly a custom or Designate panel)
+server {
+    listen 9998 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:9998;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Placement (Nova Placement)
+server {
+    listen 8780 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8780;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
+# Rating (CloudKitty)
+server {
+    listen 8889 ssl http2;
+    server_name console.connectvm.com;
+
+    ssl_certificate /etc/letsencrypt/live/console.connectvm.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.connectvm.com/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass https://192.168.1.20:8889;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_ssl_session_reuse on;
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 8 64k;
+        proxy_busy_buffers_size 128k;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}

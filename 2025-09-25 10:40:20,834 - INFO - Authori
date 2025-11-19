@@ -1,0 +1,352 @@
+
+import os
+from typing import Dict, Any
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from authlib.integrations.starlette_client import OAuth
+from authlib.jose import jwt
+from datetime import datetime, timedelta
+import uvicorn
+from dotenv import load_dotenv
+import logging
+import requests
+import secrets
+import base64
+import hashlib
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+# Load environment variables
+SSO_ID = os.getenv("SSO_ID")
+SSO_SECRET = os.getenv("SSO_SECRET")
+OIDC_ISSUER = os.getenv("OIDC_ISSUER")
+CALLBACK_URL = os.getenv("CALLBACK_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+AUTH_SECRET = os.getenv("AUTH_SECRET")
+PORT = int(os.getenv("PORT", 5002))
+IS_PRODUCTION = os.getenv("NODE_ENV") == "production"
+
+# Validate environment variables
+required_env_vars = ["SSO_ID", "SSO_SECRET", "OIDC_ISSUER", "CALLBACK_URL", "FRONTEND_URL", "SESSION_SECRET", "AUTH_SECRET"]
+missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_env_vars:
+    logger.error(f"Missing environment variables: {', '.join(missing_env_vars)}")
+    raise ValueError(f"Missing environment variables: {', '.join(missing_env_vars)}")
+
+app = FastAPI(
+    title="WSSO Proxy Backend for TAS SSO",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
+
+# Add SessionMiddleware for authlib OAuth state
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Cookie"],
+    expose_headers=["Set-Cookie"],
+)
+
+# In-memory PKCE store (use Redis in production)
+pkce_store = {}
+
+# PKCE helpers
+def generate_code_verifier():
+    return secrets.token_urlsafe(32)
+
+def generate_code_challenge(verifier: str) -> str:
+    hashed = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(hashed).decode().rstrip("=")
+
+# Cleanup stale PKCE entries (older than 10 minutes)
+def cleanup_pkce_store():
+    current_time = datetime.utcnow().timestamp()
+    for state in list(pkce_store.keys()):
+        if current_time - pkce_store[state]["created_at"] > 600:  # 10 minutes
+            logger.info(f"Cleaning up stale PKCE state: {state}")
+            del pkce_store[state]
+
+# Setup OAuth for OIDC with PKCE
+oauth = OAuth()
+oidc = oauth.register(
+    name="tas_sso",
+    client_id=SSO_ID,
+    client_secret=SSO_SECRET,
+    server_metadata_url=f"{OIDC_ISSUER}/.well-known/openid-configuration",
+    client_kwargs={
+        "scope": "openid email profile",
+        "redirect_uri": CALLBACK_URL,
+        "verify": False,  # For dev only
+        "code_challenge_method": "S256"
+    },
+)
+
+def get_current_user(request: Request) -> Dict[str, Any]:
+    token = request.cookies.get("auth_session")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
+        user_info = payload.get("userInfo", {})
+        if not user_info:
+            raise HTTPException(status_code=401, detail="No user info in session")
+        return user_info
+    except Exception as e:
+        logger.error(f"Invalid session token: {e}")
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+@app.get("/auth/discovery")
+async def auth_discovery():
+    try:
+        response = requests.get(f"{OIDC_ISSUER}/.well-known/openid-configuration", verify=IS_PRODUCTION)
+        metadata = response.json()
+        metadata.update({
+            "authorization_endpoint": f"{FRONTEND_URL}/auth/authorize",
+            "userinfo_endpoint": f"http://localhost:{PORT}/auth/userinfo",
+            "jwks_uri": f"http://localhost:{PORT}/auth/jwks",
+        })
+        return JSONResponse(metadata)
+    except Exception as e:
+        logger.error(f"Discovery failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch discovery")
+
+@app.get("/auth/jwks")
+async def auth_jwks():
+    try:
+        response = requests.get(f"{OIDC_ISSUER}/token_keys", verify=IS_PRODUCTION)
+        return JSONResponse(response.json())
+    except Exception as e:
+        logger.error(f"JWKS failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
+
+@app.get("/auth/authorize")
+async def authorize(request: Request):
+    """
+    Initiate OIDC login flow with PKCE. Store frontendUrl and PKCE verifier.
+    """
+    redirect_uri = CALLBACK_URL
+    frontend_url = request.query_params.get("frontendUrl") or request.query_params.get("redirect_uri", FRONTEND_URL)
+    code_verifier = generate_code_verifier()
+    code_challenge = generate_code_challenge(code_verifier)
+    state = secrets.token_urlsafe(16)
+
+    # Cleanup stale PKCE entries
+    cleanup_pkce_store()
+
+    # Store PKCE and frontend URL
+    pkce_store[state] = {
+        "code_verifier": code_verifier,
+        "frontend_url": frontend_url,
+        "created_at": datetime.utcnow().timestamp()
+    }
+
+    logger.info(f"Authorize - redirect_uri: {redirect_uri}, frontend_url: {frontend_url}, state: {state}, code_challenge: {code_challenge}")
+    response = await oidc.authorize_redirect(request, redirect_uri, state=state, code_challenge=code_challenge, code_challenge_method="S256")
+    logger.info(f"Authorize - Redirecting to: {response.headers.get('location')}")
+    return response
+
+@app.get("/login")
+async def login(request: Request):
+    """
+    Legacy login endpoint. Redirect to /auth/authorize.
+    """
+    frontend_url = request.query_params.get("redirect_uri", FRONTEND_URL)
+    logger.info(f"Login - redirecting to /auth/authorize with frontend_url: {frontend_url}")
+    return RedirectResponse(url=f"/auth/authorize?frontendUrl={frontend_url}")
+
+@app.get("/callback")
+async def callback(request: Request):
+    """
+    Handle OIDC callback from authservice/TAS SSO. Exchange code for token, create JWT session, set cookie, and redirect.
+    """
+    try:
+        state = request.query_params.get("state")
+        code = request.query_params.get("code")
+        error = request.query_params.get("error")
+        error_description = request.query_params.get("error_description")
+        logger.info(f"Callback - Incoming state: {state}, Code: {code}, Error: {error}, Error Description: {error_description}, Query params: {request.query_params}")
+
+        if error:
+            logger.error(f"Callback - SSO error: {error}, Description: {error_description}")
+            raise HTTPException(status_code=400, detail=f"SSO error: {error}, Description: {error_description}")
+
+        if not state or state not in pkce_store:
+            logger.error(f"Callback - Invalid or expired state: {state}")
+            raise HTTPException(status_code=400, detail="Invalid or expired state")
+
+        stored = pkce_store[state]
+        code_verifier = stored["code_verifier"]
+        frontend_url = stored["frontend_url"]
+        logger.info(f"Callback - Stored code_verifier: {code_verifier}, frontend_url: {frontend_url}")
+
+        # Exchange code for token
+        try:
+            token = await oidc.authorize_access_token(request, code_verifier=code_verifier)
+        except Exception as e:
+            logger.error(f"Token exchange failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Token exchange failed: {str(e)}")
+
+        id_token = token.get("id_token")
+        access_token = token.get("access_token")
+        logger.info(f"Callback - Access token: {access_token}, ID token: {id_token}")
+
+        # Fetch user info
+        user_info = None
+        try:
+            user_info = await oidc.userinfo(token=token)
+            logger.info(f"Callback - UserInfo: {user_info}")
+        except Exception as e:
+            logger.warning(f"Userinfo fetch failed, trying id_token: {e}")
+            try:
+                user_info = oidc.parse_id_token(token)
+                logger.info(f"Callback - UserInfo from id_token: {user_info}")
+            except Exception as e:
+                logger.error(f"ID token parse failed: {e}")
+                user_info = {}
+
+        # Create JWT session
+        payload = {
+            "userInfo": dict(user_info or {}),
+            "accessToken": access_token,
+            "idToken": id_token,
+            "iat": int(datetime.utcnow().timestamp()),
+            "exp": int((datetime.utcnow() + timedelta(hours=1)).timestamp()),
+        }
+        session_token = jwt.encode(payload, AUTH_SECRET, algorithm="HS256")
+
+        # Set cookie and redirect
+        resp = RedirectResponse(url=f"{frontend_url}?authorized=true")
+        resp.set_cookie(
+            "auth_session",
+            session_token,
+            httponly=True,
+            secure=IS_PRODUCTION,
+            samesite="none",
+            path="/",
+            max_age=24 * 60 * 60
+        )
+        logger.info(f"Callback - Cookie set: auth_session")
+        if user_info:
+            params = {
+                "id": user_info.get("sub", ""),
+                "name": user_info.get("name", "Unknown User"),
+                "email": user_info.get("email", ""),
+                "givenName": user_info.get("given_name", ""),
+                "familyName": user_info.get("family_name", ""),
+                "bemsid": user_info.get("bemsid", ""),
+            }
+            resp.headers["Location"] += "&" + "&".join(f"{k}={v}" for k, v in params.items())
+        logger.info(f"Callback - Redirecting to: {resp.headers['Location']}")
+
+        # Clean up PKCE store
+        del pkce_store[state]
+        return resp
+    except Exception as e:
+        logger.error(f"Callback error: {str(e)} | Query params: {request.query_params}")
+        if state in pkce_store:
+            del pkce_store[state]
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+
+@app.get("/auth/userinfo")
+async def auth_userinfo(request: Request):
+    token = request.cookies.get("auth_session")
+    logger.info(f"Userinfo token: {token}")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
+        user_info = payload.get("userInfo", {})
+        if not user_info:
+            raise HTTPException(status_code=401, detail="No user info available")
+        logger.info(f"Userinfo - Cached userInfo: {user_info}")
+        return {
+            "id": user_info.get("sub"),
+            "name": user_info.get("name"),
+            "email": user_info.get("email"),
+            "givenName": user_info.get("given_name"),
+            "familyName": user_info.get("family_name"),
+            "bemsid": user_info.get("bemsid"),
+            "profile": user_info,
+        }
+    except Exception as e:
+        logger.error(f"Userinfo failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+@app.get("/auth/status")
+async def auth_status(request: Request, current_user: Dict[str, Any] = Depends(get_current_user)):
+    logger.info(f"Status - User: {current_user}")
+    return {"authenticated": True, "user": current_user}
+
+@app.get("/auth/session")
+async def auth_session(request: Request):
+    token = request.cookies.get("auth_session")
+    logger.info(f"Session token: {token}")
+    if not token:
+        return {"user": None}
+    try:
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
+        user_info = payload.get("userInfo", {})
+        if not user_info:
+            return {"user": None}
+        logger.info(f"Session - Cached userInfo: {user_info}")
+        return {
+            "user": {
+                "id": user_info.get("sub"),
+                "name": user_info.get("name", "Unknown User"),
+                "email": user_info.get("email"),
+                "givenName": user_info.get("given_name"),
+                "familyName": user_info.get("family_name"),
+                "bemsid": user_info.get("bemsid"),
+            },
+            "accessToken": payload.get("accessToken"),
+            "idToken": payload.get("idToken"),
+        }
+    except Exception as e:
+        logger.error(f"Session validation failed: {e}")
+        resp = JSONResponse(content={"user": None})
+        resp.delete_cookie("auth_session", path="/")
+        return resp
+
+@app.post("/auth/signout")
+async def auth_signout():
+    resp = JSONResponse(content={"success": True})
+    resp.delete_cookie("auth_session", path="/")
+    return resp
+
+@app.get("/lock")
+async def transparent_lock(request: Request):
+    try:
+        get_current_user(request)
+        return JSONResponse({"status": "unlocked", "message": "Session active"})
+    except HTTPException:
+        frontend_url = request.session.get("frontend_url", FRONTEND_URL)
+        return RedirectResponse(url=f"/auth/authorize?frontendUrl={frontend_url}")
+
+@app.get("/proxy/{path:path}")
+async def proxy_endpoint(path: str, request: Request, current_user: Dict[str, Any] = Depends(get_current_user)):
+    return {"path": path, "user": current_user["sub"], "message": "Protected proxy response"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
+
+
+
+
+2025-09-25 10:40:20,834 - INFO - Authorize - Redirecting to: MutableHeaders({'content-length': '0', 'location': 'https://apps-bemsid.uaa.system.tas-phx.cloud.boeing.com/oauth/authorize?response_type=code&client_id=eec92122-cfaa-4121-92dc-cf2cee5ee5f1&redirect_uri=http%3A%2F%2Flocalhost%3A5002%2Fcallback&scope=openid+email+profile&state=f_vRASQ0mNGSqzsAS1o5iQ&code_challenge=wckMG0H9BYqYZLfWpcs7MuMja6CJcOgGFN9sRQ7TlmY&code_challenge_method=S256&nonce=JDd8J9Dbf8G7O4D0SVrq'})

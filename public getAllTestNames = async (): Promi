@@ -1,0 +1,30 @@
+public getAllTestNames = async (): Promise<{ TestName: string[] }> => {
+    // const allTestConfigPairs = new Set<string>();
+    const results: string[] = [];
+    // const daqStart = this.daqInitialTimestamp;
+    const pairQuery = `
+      from(bucket: "${this.bucket}")
+        |> range(start:0)
+        |> filter(fn: (r) => r._measurement == "historical-data")
+        |> keep(columns: ["TestName"])
+        |> distinct(column: "TestName")
+    `;
+    const startTime = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      this.queryApi.queryRows(pairQuery, {
+        next: (row, tableMeta) => {
+          const obj = tableMeta.toObject(row);
+          if (obj.TestName) {
+            // Only check for TestName
+            results.push(`${obj.TestName}`); // Store only TestName
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          logger.debug(`Total Time Taken for getAllTestNames = ${Date.now() - startTime}ms`); // Log the time taken
+          resolve();
+        },
+      });
+    });
+    return { TestName: results };
+  }; taking lot of time .. optimize lot
