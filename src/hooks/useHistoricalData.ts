@@ -162,9 +162,15 @@ const useHistoricalData = (apiBase: string) => {
   // Helper function to add id_ prefix to channel numbers in expression
   const addIdPrefixToExpression = (expression: string): string => {
     if (!expression) return expression;
-    // Replace standalone numbers with id_ prefix
-    // Matches numbers that are not part of decimals (e.g., "1" -> "id_1" but not "1.5")
-    return expression.replace(/\b(\d+)(?!\.|_)\b/g, "id_$1");
+    // Strategy: Channel IDs are typically larger numbers (like 10306001, 10306002)
+    // Constants are typically small numbers (like 0, 1, 2, 5, 10, 100) or decimals
+    // We'll add id_ prefix to numbers >= 1000 (assuming channel IDs are always >= 1000)
+    // For smaller numbers, we won't add prefix (treating them as constants)
+    return expression.replace(/\b(\d+)(?!\.|_)\b/g, (match) => {
+      const num = parseInt(match, 10);
+      // Only add id_ prefix if number is >= 1000 (likely a channel ID)
+      return num >= 1000 ? `id_${match}` : match;
+    });
   };
 
   const fetchCustomQueryData = async (
