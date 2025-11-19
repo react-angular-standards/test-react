@@ -23,7 +23,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
   expression,
   allChannelOptions,
   onChange,
-  placeholder = "Type expression: e.g., id_1 + id_2 * 5",
+  placeholder = "Type expression: e.g., 1 + 2 * 5",
 }) => {
   const [inputValue, setInputValue] = useState(expression);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -35,8 +35,18 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
   const operators = ["+", "-", "*", "/", "(", ")"];
   const commonConstants = ["0", "1", "2", "5", "10", "100", "0.5", "1.5"];
 
+  // Only sync when expression changes from parent (not from our own changes)
+  const previousExpressionRef = useRef(expression);
+
   useEffect(() => {
-    setInputValue(expression);
+    // Only update if the expression changed externally (e.g., from clear button)
+    if (
+      expression !== inputValue &&
+      expression !== previousExpressionRef.current
+    ) {
+      setInputValue(expression);
+    }
+    previousExpressionRef.current = expression;
   }, [expression]);
 
   const getLastToken = (text: string, position: number): string => {
@@ -58,15 +68,11 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     if (currentToken.length > 0) {
       const newSuggestions: string[] = [];
 
-      // Suggest channel IDs
-      if (
-        currentToken.startsWith("id_") ||
-        currentToken === "i" ||
-        currentToken === "id"
-      ) {
+      // Suggest channel IDs (without id_ prefix in UI)
+      if (/^\d/.test(currentToken)) {
         allChannelOptions.forEach((opt) => {
-          const channelId = `id_${opt.value}`;
-          if (channelId.toLowerCase().includes(currentToken.toLowerCase())) {
+          const channelId = String(opt.value);
+          if (channelId.includes(currentToken)) {
             newSuggestions.push(channelId);
           }
         });
@@ -95,7 +101,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       const lastChar = value[position - 1];
       if (!value || operators.includes(lastChar) || lastChar === " ") {
         setSuggestions(
-          allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`),
+          allChannelOptions.slice(0, 10).map((opt) => String(opt.value)),
         );
         setShowSuggestions(true);
       } else {
@@ -162,7 +168,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           setCursorPosition(position);
           if (!value || value.endsWith(" ")) {
             setSuggestions(
-              allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`),
+              allChannelOptions.slice(0, 10).map((opt) => String(opt.value)),
             );
             setShowSuggestions(true);
           }
@@ -285,8 +291,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           mt: 0.5,
         }}
       >
-        💡 Type "id_" for channels, numbers for constants, or click operator
-        chips above
+        💡 Type channel numbers, constants, or click operator chips above
       </Typography>
     </Box>
   );

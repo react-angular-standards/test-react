@@ -159,6 +159,14 @@ const useHistoricalData = (apiBase: string) => {
     return { data, totalCount: result.totalCount || 0 };
   };
 
+  // Helper function to add id_ prefix to channel numbers in expression
+  const addIdPrefixToExpression = (expression: string): string => {
+    if (!expression) return expression;
+    // Replace standalone numbers with id_ prefix
+    // Matches numbers that are not part of decimals (e.g., "1" -> "id_1" but not "1.5")
+    return expression.replace(/\b(\d+)(?!\.|_)\b/g, "id_$1");
+  };
+
   const fetchCustomQueryData = async (
     testName: string,
     configName: string,
@@ -168,7 +176,7 @@ const useHistoricalData = (apiBase: string) => {
     const requestBody: CustomQueryRequest = {
       TestName: testName,
       ConfigName: configName,
-      ChannelOperation: config.channelExpression,
+      ChannelOperation: addIdPrefixToExpression(config.channelExpression),
       outputChannelName: config.outputChannelName,
       pushToDB: pushToDB,
       startTime: config.startTime?.toISOString(),

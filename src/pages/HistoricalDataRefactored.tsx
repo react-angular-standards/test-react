@@ -594,7 +594,14 @@ const HistoricalDataRefactored: React.FC = () => {
               )}
 
               {/* Data View */}
-              <Box sx={{ height: 500, width: "100%", overflow: "hidden" }}>
+              <Box
+                sx={{
+                  height: "calc(100vh - 250px)",
+                  minHeight: 600,
+                  width: "100%",
+                  overflow: "hidden",
+                }}
+              >
                 {view === "table" ? (
                   <DataGrid
                     rows={filteredData}
@@ -627,7 +634,7 @@ const HistoricalDataRefactored: React.FC = () => {
                   <CanvasJSReact.CanvasJSChart
                     options={chartOptions}
                     containerProps={{
-                      style: { width: "100%", height: "500px" },
+                      style: { width: "100%", height: "100%" },
                     }}
                   />
                 )}
