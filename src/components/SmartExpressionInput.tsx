@@ -59,7 +59,11 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       const newSuggestions: string[] = [];
 
       // Suggest channel IDs
-      if (currentToken.startsWith("id_") || currentToken === "i" || currentToken === "id") {
+      if (
+        currentToken.startsWith("id_") ||
+        currentToken === "i" ||
+        currentToken === "id"
+      ) {
         allChannelOptions.forEach((opt) => {
           const channelId = `id_${opt.value}`;
           if (channelId.toLowerCase().includes(currentToken.toLowerCase())) {
@@ -91,7 +95,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
       const lastChar = value[position - 1];
       if (!value || operators.includes(lastChar) || lastChar === " ") {
         setSuggestions(
-          allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`)
+          allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`),
         );
         setShowSuggestions(true);
       } else {
@@ -128,7 +132,10 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     // Delay hiding suggestions to allow click
     setTimeout(() => {
       setShowSuggestions(false);
-      onChange(inputValue.trim());
+      // Only call onChange if the value actually changed
+      if (inputValue.trim() !== expression) {
+        onChange(inputValue.trim());
+      }
     }, 200);
   };
 
@@ -155,7 +162,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           setCursorPosition(position);
           if (!value || value.endsWith(" ")) {
             setSuggestions(
-              allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`)
+              allChannelOptions.slice(0, 10).map((opt) => `id_${opt.value}`),
             );
             setShowSuggestions(true);
           }
@@ -174,7 +181,10 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
 
       {/* Helper Chips */}
       <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
-        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "#999", mr: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontSize: "0.65rem", color: "#999", mr: 1 }}
+        >
           Quick add:
         </Typography>
         {operators.map((op) => (
@@ -275,7 +285,8 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           mt: 0.5,
         }}
       >
-        💡 Type "id_" for channels, numbers for constants, or click operator chips above
+        💡 Type "id_" for channels, numbers for constants, or click operator
+        chips above
       </Typography>
     </Box>
   );
