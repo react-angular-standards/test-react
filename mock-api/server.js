@@ -95,7 +95,7 @@ app.post("/filter", (req, res) => {
   });
 });
 
-// POST /custom-query - Returns custom query results
+// POST /custom-query - Returns custom query results with pagination
 app.post("/custom-query", (req, res) => {
   const {
     TestName,
@@ -104,24 +104,34 @@ app.post("/custom-query", (req, res) => {
     outputChannelName,
     startTime,
     endTime,
+    limit = 10,
+    offset = 0,
   } = req.body;
 
   // Generate mock custom query data
-  const mockData = [];
-  const totalRecords = 50;
+  const totalRecords = 100; // Total mock records available
 
-  for (let i = 0; i < totalRecords; i++) {
+  // Generate paginated data
+  const startIndex = offset;
+  const endIndex = Math.min(offset + limit, totalRecords);
+
+  const mockData = [];
+  for (let i = startIndex; i < endIndex; i++) {
     mockData.push({
-      timestamp: new Date(
+      Timestamp: new Date(
         Date.now() - (totalRecords - i) * 60000,
       ).toISOString(),
-      testName: TestName,
-      configName: ConfigName,
-      [outputChannelName || "result"]: (Math.random() * 200).toFixed(2),
+      TestName: TestName,
+      ConfigName: ConfigName,
+      Channel: outputChannelName || "result",
+      Value: (Math.random() * 200).toFixed(2),
     });
   }
 
-  res.json(mockData);
+  res.json({
+    data: mockData,
+    totalCount: totalRecords,
+  });
 });
 
 // Start server

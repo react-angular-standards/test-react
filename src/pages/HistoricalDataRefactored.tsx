@@ -207,14 +207,17 @@ const HistoricalDataRefactored: React.FC = () => {
 
       // Fetch custom query data
       for (const cq of selectedCustomQueries) {
-        const customData = await fetchCustomQueryData(
-          cq.testName,
-          cq.configName,
-          cq.config,
-          cq.pushToDB,
-        );
+        const { data: customData, totalCount: customTotalCount } =
+          await fetchCustomQueryData(
+            currentPage,
+            pageSize,
+            cq.testName,
+            cq.configName,
+            cq.config,
+            cq.pushToDB,
+          );
         allData = allData.concat(customData);
-        total += customData.length;
+        total += customTotalCount;
       }
 
       // Sort by Timestamp

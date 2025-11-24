@@ -174,11 +174,14 @@ const useHistoricalData = (apiBase: string) => {
   };
 
   const fetchCustomQueryData = async (
+    page: number,
+    pageSize: number,
     testName: string,
     configName: string,
     config: CustomQueryConfig,
     pushToDB: boolean = false,
   ) => {
+    const offset = page * pageSize;
     const requestBody: CustomQueryRequest = {
       TestName: testName,
       ConfigName: configName,
@@ -187,6 +190,8 @@ const useHistoricalData = (apiBase: string) => {
       pushToDB: pushToDB,
       startTime: config.startTime?.toISOString(),
       endTime: config.endTime?.toISOString(),
+      limit: pageSize,
+      offset,
     };
 
     const response = await fetch(`${apiBase}/custom-query`, {
@@ -200,10 +205,11 @@ const useHistoricalData = (apiBase: string) => {
 
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const result = await response.json();
-    return (result || []).map((row: any, index: number) => ({
+    const data = (result.data || []).map((row: any, index: number) => ({
       ...row,
-      id: `custom_${testName}_${configName}_${index}`,
+      id: `custom_${testName}_${configName}_${offset + index}`,
     }));
+    return { data, totalCount: result.totalCount || 0 };
   };
 
   return {

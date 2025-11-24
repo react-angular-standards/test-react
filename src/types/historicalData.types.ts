@@ -86,6 +86,8 @@ export interface CustomQueryRequest {
   pushToDB: boolean;
   startTime?: string;
   endTime?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface TestConfigDetailsResponse {
