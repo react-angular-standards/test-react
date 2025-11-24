@@ -17,6 +17,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import { MultiValue, SingleValue } from "react-select";
 import {
   CustomQueryTest,
   Test,
@@ -34,7 +35,9 @@ interface CustomQueryDrawerContentProps {
   allChannelOptions: SelectOption[];
   selectedCustomQueryTestsCount: number;
   error: string | null;
-  onTestSelect: (selected: any) => void;
+  onTestSelect: (
+    selected: SingleValue<SelectOption> | MultiValue<SelectOption>,
+  ) => void;
   onTestToggle: (testName: string) => void;
   onTestAccordionToggle: (testName: string) => void;
   onConfigAccordionToggle: (testName: string, configName: string) => void;
@@ -47,7 +50,7 @@ interface CustomQueryDrawerContentProps {
   onChannelSelect: (
     testName: string,
     configName: string,
-    selected: any,
+    selected: MultiValue<SelectOption> | null,
   ) => void;
   onAddOperator: (
     testName: string,

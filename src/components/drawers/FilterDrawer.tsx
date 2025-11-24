@@ -19,7 +19,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { MultiValue } from "react-select";
+import { MultiValue, SingleValue } from "react-select";
 import {
   TestSelection,
   Test,
@@ -40,7 +40,9 @@ interface FilterDrawerProps {
   cards: Record<string, string[]>;
   channels: Record<string, number[]>;
   error: string | null;
-  onTestSelect: (selected: any) => void;
+  onTestSelect: (
+    selected: SingleValue<SelectOption> | MultiValue<SelectOption>,
+  ) => void;
   onTestToggle: (testName: string) => void;
   onTestAccordionToggle: (testName: string) => void;
   onConfigAccordionToggle: (testName: string, configName: string) => void;
@@ -48,7 +50,7 @@ interface FilterDrawerProps {
     testName: string,
     configName: string,
     cardName: string,
-    selected: any,
+    selected: MultiValue<SelectOption> | null,
   ) => void;
   onTimeChange: (
     testName: string,
@@ -392,7 +394,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                                                   selection.testName,
                                                   config.configName,
                                                   cardSel.cardName,
-                                                  selected as MultiValue<SelectOption>,
+                                                  selected as MultiValue<SelectOption> | null,
                                                 )
                                               }
                                               placeholder="Select channels..."
