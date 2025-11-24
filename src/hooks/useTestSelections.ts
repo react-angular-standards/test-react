@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import dayjs, { Dayjs } from "dayjs";
-import { SingleValue, MultiValue, ActionMeta } from "react-select";
+import { SingleValue, MultiValue } from "react-select";
 import {
   Test,
   TestSelection,
@@ -27,7 +27,6 @@ const useTestSelections = (tests: Test[]) => {
 
   const handleTestSelect = (
     selected: SingleValue<SelectOption> | MultiValue<SelectOption>,
-    action: ActionMeta<SelectOption>,
   ) => {
     const selectedNames = (selected as MultiValue<SelectOption>).map(
       (s) => s.value as string,

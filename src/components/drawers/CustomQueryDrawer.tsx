@@ -34,7 +34,7 @@ interface CustomQueryDrawerProps {
   testOptions: SelectOption[];
   selectedCustomQueryTestsCount: number;
   error: string | null;
-  onTestSelect: (selected: any, action: any) => void;
+  onTestSelect: (selected: any) => void;
   onTestToggle: (testName: string) => void;
   onTestAccordionToggle: (testName: string) => void;
   onConfigAccordionToggle: (testName: string, configName: string) => void;
@@ -341,7 +341,10 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
                                           config.startTime?.millisecond() ?? 0
                                         }
                                         onChange={(e) => {
-                                          const ms = parseInt(e.target.value, 10);
+                                          const ms = parseInt(
+                                            e.target.value,
+                                            10,
+                                          );
                                           if (!isNaN(ms) && config.startTime) {
                                             const newTime =
                                               config.startTime.millisecond(ms);
@@ -353,7 +356,11 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
                                             );
                                           }
                                         }}
-                                        inputProps={{ min: 0, max: 999, step: 1 }}
+                                        inputProps={{
+                                          min: 0,
+                                          max: 999,
+                                          step: 1,
+                                        }}
                                         helperText="0-999 ms"
                                         sx={{
                                           "& .MuiFormHelperText-root": {
@@ -366,9 +373,14 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
                                         type="number"
                                         size="small"
                                         fullWidth
-                                        value={config.endTime?.millisecond() ?? 0}
+                                        value={
+                                          config.endTime?.millisecond() ?? 0
+                                        }
                                         onChange={(e) => {
-                                          const ms = parseInt(e.target.value, 10);
+                                          const ms = parseInt(
+                                            e.target.value,
+                                            10,
+                                          );
                                           if (!isNaN(ms) && config.endTime) {
                                             const newTime =
                                               config.endTime.millisecond(ms);
@@ -380,7 +392,11 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
                                             );
                                           }
                                         }}
-                                        inputProps={{ min: 0, max: 999, step: 1 }}
+                                        inputProps={{
+                                          min: 0,
+                                          max: 999,
+                                          step: 1,
+                                        }}
                                         helperText="0-999 ms"
                                         sx={{
                                           "& .MuiFormHelperText-root": {
@@ -429,12 +445,12 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
                                         )
                                       }
                                       error={
-                                        config.channelExpression.trim() !== "" &&
-                                        !validation.isValid
+                                        config.channelExpression.trim() !==
+                                          "" && !validation.isValid
                                       }
                                       helperText={
-                                        config.channelExpression.trim() !== "" &&
-                                        !validation.isValid
+                                        config.channelExpression.trim() !==
+                                          "" && !validation.isValid
                                           ? validation.error
                                           : "Type channel numbers and operators"
                                       }
@@ -522,7 +538,9 @@ const CustomQueryDrawer: React.FC<CustomQueryDrawerProps> = ({
             color="secondary"
             onClick={onSubmit}
             disabled={
-              loading || tests.length === 0 || selectedCustomQueryTestsCount === 0
+              loading ||
+              tests.length === 0 ||
+              selectedCustomQueryTestsCount === 0
             }
             sx={{ minWidth: 80, fontWeight: 600, textTransform: "none" }}
           >

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SingleValue, MultiValue, ActionMeta } from "react-select";
+import { SingleValue, MultiValue } from "react-select";
 import { Dayjs } from "dayjs";
 import {
   Test,
@@ -28,7 +28,6 @@ const useCustomQuerySelections = (tests: Test[]) => {
 
   const handleCustomQueryTestSelect = (
     selected: SingleValue<SelectOption> | MultiValue<SelectOption>,
-    action: ActionMeta<SelectOption>,
   ) => {
     const selectedNames = (selected as MultiValue<SelectOption>).map(
       (s) => s.value as string,

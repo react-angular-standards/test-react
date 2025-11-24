@@ -35,7 +35,7 @@ interface FilterDrawerContentProps {
   cards: Record<string, string[]>;
   channels: Record<string, number[]>;
   error: string | null;
-  onTestSelect: (selected: any, action: any) => void;
+  onTestSelect: (selected: any) => void;
   onTestToggle: (testName: string) => void;
   onTestAccordionToggle: (testName: string) => void;
   onConfigAccordionToggle: (testName: string, configName: string) => void;
