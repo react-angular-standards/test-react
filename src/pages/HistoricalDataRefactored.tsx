@@ -149,11 +149,17 @@ const HistoricalDataRefactored: React.FC = () => {
   // Handle config accordion toggle with data fetch
   const handleConfigToggle = (testName: string, configName: string) => {
     handleConfigAccordionToggle(testName, configName);
-    const key = `${testName}_${configName}`;
-    // Always fetch if cards are not loaded for this config
-    if (!cards[key]) {
+
+    // Check if cardSelections need to be populated
+    const testSelection = testSelections.find((t) => t.testName === testName);
+    const configSelection = testSelection?.configSelections.find(
+      (c) => c.configName === configName,
+    );
+
+    // Always fetch/get card details if cardSelections is empty
+    if (!configSelection || configSelection.cardSelections.length === 0) {
       fetchTestConfigDetails(testName, configName).then((result) => {
-        if (result) {
+        if (result && result.cards) {
           updateCardSelections(testName, configName, result.cards, {
             startTime: result.startTime,
             endTime: result.endTime,
@@ -164,22 +170,6 @@ const HistoricalDataRefactored: React.FC = () => {
           });
         }
       });
-    } else {
-      // Cards exist but cardSelections might be empty - ensure they're populated
-      const testSelection = testSelections.find((t) => t.testName === testName);
-      const configSelection = testSelection?.configSelections.find(
-        (c) => c.configName === configName,
-      );
-      if (configSelection && configSelection.cardSelections.length === 0) {
-        fetchTestConfigDetails(testName, configName).then((result) => {
-          if (result) {
-            updateCardSelections(testName, configName, result.cards, {
-              startTime: result.startTime,
-              endTime: result.endTime,
-            });
-          }
-        });
-      }
     }
   };
 
@@ -361,24 +351,25 @@ const HistoricalDataRefactored: React.FC = () => {
     }));
   }, [filteredData]);
 
-  // Chart data
+  // Chart data - supports both numeric and string channel names
   const chartData: SeriesData[] = useMemo(() => {
     if (filteredData.length === 0) {
       return [];
     }
 
+    // Get unique channel names (can be numbers or strings)
     const channelsToPlot = Array.from(
       new Set(
         filteredData
-          .map((row: DataRow) => Number(row.Channel))
-          .filter((id: number) => !isNaN(id)),
+          .map((row: DataRow) => String(row.Channel))
+          .filter((ch: string) => ch && ch !== "undefined" && ch !== "null"),
       ),
     );
 
-    const dataByChannel: { [key: number]: DataRow[] } = {};
+    const dataByChannel: { [key: string]: DataRow[] } = {};
     filteredData.forEach((row: DataRow) => {
-      const ch = Number(row.Channel);
-      if (!isNaN(ch) && channelsToPlot.includes(ch)) {
+      const ch = String(row.Channel);
+      if (ch && channelsToPlot.includes(ch)) {
         if (!dataByChannel[ch]) {
           dataByChannel[ch] = [];
         }
@@ -404,7 +395,7 @@ const HistoricalDataRefactored: React.FC = () => {
     }
 
     return [];
-  }, [filteredData, columns]);
+  }, [filteredData]);
 
   // Chart options
   const chartOptions = useMemo(

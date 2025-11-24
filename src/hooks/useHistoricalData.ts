@@ -64,49 +64,57 @@ const useHistoricalData = (apiBase: string) => {
   const fetchTestConfigDetails = async (
     testName: string,
     configName: string,
+    forceRefresh: boolean = false,
   ) => {
     const key = `${testName}_${configName}`;
-    if (!cards[key]) {
-      try {
-        const response = await fetch(
-          `${apiBase}/test-config-details?TestName=${encodeURIComponent(
-            testName,
-          )}&ConfigName=${encodeURIComponent(configName)}`,
-          {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          },
-        );
-        if (!response.ok)
-          throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
 
-        const cardList = data.details.map((detail: any) => detail.cardType);
-        setCards((prev) => ({ ...prev, [key]: cardList }));
-
-        const channelsMap: Record<string, number[]> = {};
-        const allChannelsSet = new Set<number>();
-        data.details.forEach((detail: any) => {
-          channelsMap[`${testName}_${configName}_${detail.cardType}`] =
-            detail.channels;
-          detail.channels.forEach((ch: number) => allChannelsSet.add(ch));
-        });
-        setChannels((prev) => ({ ...prev, ...channelsMap }));
-        setAllChannels(Array.from(allChannelsSet).sort((a, b) => a - b));
-
-        return {
-          cards: cardList,
-          startTime: data.testStartTime ? dayjs(data.testStartTime) : null,
-          endTime: data.testEndTime ? dayjs(data.testEndTime) : null,
-        };
-      } catch (err: any) {
-        setError(
-          `Failed to fetch test config details for ${testName} - ${configName}.`,
-        );
-        return null;
-      }
+    // If cards already exist and not forcing refresh, return existing data
+    if (cards[key] && !forceRefresh) {
+      return {
+        cards: cards[key],
+        startTime: null,
+        endTime: null,
+      };
     }
-    return null;
+
+    try {
+      const response = await fetch(
+        `${apiBase}/test-config-details?TestName=${encodeURIComponent(
+          testName,
+        )}&ConfigName=${encodeURIComponent(configName)}`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        },
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+
+      const cardList = data.details.map((detail: any) => detail.cardType);
+      setCards((prev) => ({ ...prev, [key]: cardList }));
+
+      const channelsMap: Record<string, number[]> = {};
+      const allChannelsSet = new Set<number>();
+      data.details.forEach((detail: any) => {
+        channelsMap[`${testName}_${configName}_${detail.cardType}`] =
+          detail.channels;
+        detail.channels.forEach((ch: number) => allChannelsSet.add(ch));
+      });
+      setChannels((prev) => ({ ...prev, ...channelsMap }));
+      setAllChannels(Array.from(allChannelsSet).sort((a, b) => a - b));
+
+      return {
+        cards: cardList,
+        startTime: data.testStartTime ? dayjs(data.testStartTime) : null,
+        endTime: data.testEndTime ? dayjs(data.testEndTime) : null,
+      };
+    } catch (err: any) {
+      setError(
+        `Failed to fetch test config details for ${testName} - ${configName}.`,
+      );
+      return null;
+    }
   };
 
   const fetchFilteredData = async (

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   TextField,
@@ -23,32 +23,25 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
   expression,
   allChannelOptions,
   onChange,
-  placeholder = "Type expression: e.g., 1 + 2 * 5",
+  placeholder = "Type expression: e.g., 10306001 + 10306002 * 5",
 }) => {
   const [inputValue, setInputValue] = useState(expression);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<
     Array<{ value: string; label: string }>
   >([]);
-  const [cursorPosition, setCursorPosition] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isInternalChange = useRef(false);
 
-  // Operators and common constants
+  // Operators
   const operators = ["+", "-", "*", "/", "(", ")"];
-  const commonConstants = ["0", "1", "2", "5", "10", "100", "0.5", "1.5"];
 
-  // Only sync when expression changes from parent (not from our own changes)
-  const previousExpressionRef = useRef(expression);
-
+  // Sync with parent expression only when it changes externally
   useEffect(() => {
-    // Only update if the expression changed externally (e.g., from clear button)
-    if (
-      expression !== inputValue &&
-      expression !== previousExpressionRef.current
-    ) {
+    if (!isInternalChange.current && expression !== inputValue) {
       setInputValue(expression);
     }
-    previousExpressionRef.current = expression;
+    isInternalChange.current = false;
   }, [expression]);
 
   const getLastToken = (text: string, position: number): string => {
@@ -62,59 +55,23 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     const position = e.target.selectionStart || 0;
 
     setInputValue(value);
-    setCursorPosition(position);
 
     // Get the current token being typed
     const currentToken = getLastToken(value, position);
 
-    if (currentToken.length > 0) {
-      const newSuggestions: Array<{ value: string; label: string }> = [];
-
-      // Suggest channel IDs (with Ch: prefix in display)
-      if (/^\d/.test(currentToken)) {
-        allChannelOptions.forEach((opt) => {
-          const channelId = String(opt.value);
-          if (channelId.includes(currentToken)) {
-            newSuggestions.push({
-              value: channelId,
-              label: opt.label || `Ch: ${channelId}`,
-            });
-          }
-        });
-      }
-
-      // Suggest operators
-      operators.forEach((op) => {
-        if (op.includes(currentToken) && currentToken.length === 1) {
-          newSuggestions.push({ value: op, label: op });
-        }
-      });
-
-      // Suggest common constants if typing numbers
-      if (/^\d/.test(currentToken)) {
-        commonConstants.forEach((constant) => {
-          if (constant.startsWith(currentToken)) {
-            newSuggestions.push({ value: constant, label: constant });
-          }
-        });
-      }
-
-      setSuggestions(newSuggestions.slice(0, 10)); // Limit to 10 suggestions
-      setShowSuggestions(newSuggestions.length > 0);
+    if (currentToken.length > 0 && /^\d/.test(currentToken)) {
+      // Show channel suggestions when typing numbers
+      const filtered = allChannelOptions
+        .filter((opt) => String(opt.value).includes(currentToken))
+        .slice(0, 8)
+        .map((opt) => ({
+          value: String(opt.value),
+          label: `Ch: ${opt.value}`,
+        }));
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
     } else {
-      // Show all channel options when empty or after operator
-      const lastChar = value[position - 1];
-      if (!value || operators.includes(lastChar) || lastChar === " ") {
-        setSuggestions(
-          allChannelOptions.slice(0, 10).map((opt) => ({
-            value: String(opt.value),
-            label: opt.label || `Ch: ${opt.value}`,
-          })),
-        );
-        setShowSuggestions(true);
-      } else {
-        setShowSuggestions(false);
-      }
+      setShowSuggestions(false);
     }
   };
 
@@ -122,39 +79,49 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     value: string;
     label: string;
   }) => {
-    const beforeCursor = inputValue.substring(0, cursorPosition);
-    const afterCursor = inputValue.substring(cursorPosition);
-    const currentToken = getLastToken(beforeCursor, cursorPosition);
+    if (!inputRef.current) return;
 
-    // Replace the current token with the suggestion value (not label)
+    const cursorPos = inputRef.current.selectionStart || inputValue.length;
+    const beforeCursor = inputValue.substring(0, cursorPos);
+    const afterCursor = inputValue.substring(cursorPos);
+    const currentToken = getLastToken(beforeCursor, cursorPos);
+
+    // Replace the current token with the suggestion value
     const newValue =
       beforeCursor.substring(0, beforeCursor.length - currentToken.length) +
       suggestion.value +
       " " +
       afterCursor;
 
+    isInternalChange.current = true;
     setInputValue(newValue);
     onChange(newValue.trim());
     setShowSuggestions(false);
 
-    // Focus back on input
+    // Focus and set cursor at end of inserted value
     setTimeout(() => {
       if (inputRef.current) {
+        const newCursorPos =
+          beforeCursor.length -
+          currentToken.length +
+          suggestion.value.length +
+          1;
         inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
-    }, 100);
+    }, 0);
   };
 
-  const handleBlur = useCallback(() => {
-    // Delay hiding suggestions to allow click
+  const handleBlur = () => {
+    // Delay to allow suggestion click
     setTimeout(() => {
       setShowSuggestions(false);
-      // Only call onChange if the value actually changed
       if (inputValue.trim() !== expression) {
+        isInternalChange.current = true;
         onChange(inputValue.trim());
       }
-    }, 200);
-  }, [inputValue, expression, onChange]);
+    }, 150);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && suggestions.length > 0) {
@@ -165,33 +132,44 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     }
   };
 
+  const handleOperatorClick = (op: string) => {
+    const newValue =
+      inputValue +
+      (inputValue && !inputValue.endsWith(" ") ? " " : "") +
+      op +
+      " ";
+    isInternalChange.current = true;
+    setInputValue(newValue);
+    onChange(newValue.trim());
+
+    // Keep focus and cursor at end
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newValue.length, newValue.length);
+      }
+    }, 0);
+  };
+
   return (
     <Box sx={{ position: "relative", width: "100%" }}>
+      <Typography
+        variant="subtitle2"
+        sx={{ mb: 0.5, fontWeight: 600, fontSize: "0.85rem" }}
+      >
+        Channel Expression
+      </Typography>
+
       <TextField
         fullWidth
         inputRef={inputRef}
         value={inputValue}
         onChange={handleInputChange}
         onBlur={handleBlur}
-        onFocus={(e) => {
-          const value = e.target.value;
-          const position = e.target.selectionStart || 0;
-          setCursorPosition(position);
-          if (!value || value.endsWith(" ")) {
-            setSuggestions(
-              allChannelOptions.slice(0, 10).map((opt) => ({
-                value: String(opt.value),
-                label: opt.label || `Ch: ${opt.value}`,
-              })),
-            );
-            setShowSuggestions(true);
-          }
-        }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         size="small"
         sx={{
-          fontFamily: "monospace",
           "& .MuiInputBase-input": {
             fontFamily: "monospace",
             fontSize: "0.9rem",
@@ -199,36 +177,44 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
         }}
       />
 
-      {/* Helper Chips */}
-      <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
+      {/* Operator Chips */}
+      <Box
+        sx={{
+          display: "flex",
+          gap: 0.5,
+          mt: 0.5,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <Typography
           variant="caption"
-          sx={{ fontSize: "0.65rem", color: "#999", mr: 1 }}
+          sx={{ fontSize: "0.65rem", color: "#666" }}
         >
-          Quick add:
+          Operators:
         </Typography>
         {operators.map((op) => (
           <Chip
             key={op}
             label={op}
             size="small"
-            onClick={() => {
-              const newValue = inputValue + (inputValue ? " " : "") + op + " ";
-              setInputValue(newValue);
-              onChange(newValue.trim());
-              inputRef.current?.focus();
+            onClick={() => handleOperatorClick(op)}
+            sx={{
+              height: "20px",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              "&:hover": { bgcolor: "#e3f2fd" },
             }}
-            sx={{ height: "20px", fontSize: "0.7rem", cursor: "pointer" }}
           />
         ))}
       </Box>
 
-      {/* Autocomplete Suggestions */}
+      {/* Autocomplete Suggestions Dropdown */}
       {showSuggestions && suggestions.length > 0 && (
         <Paper
           sx={{
             position: "absolute",
-            top: "100%",
+            top: "calc(100% - 30px)",
             left: 0,
             right: 0,
             mt: 0.5,
@@ -242,7 +228,10 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
             {suggestions.map((suggestion, index) => (
               <ListItem key={index} disablePadding>
                 <ListItemButton
-                  onClick={() => handleSuggestionClick(suggestion)}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevent blur
+                    handleSuggestionClick(suggestion);
+                  }}
                   sx={{ py: 0.5 }}
                 >
                   <ListItemText
@@ -259,57 +248,13 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
         </Paper>
       )}
 
-      {/* Channel Options - Show next to expression */}
-      <Box sx={{ mt: 1 }}>
-        <Typography
-          variant="caption"
-          sx={{ fontSize: "0.7rem", color: "#666", mb: 0.5, display: "block" }}
-        >
-          Available Channels (click to add):
-        </Typography>
-        <Box
-          sx={{
-            display: "flex",
-            gap: 0.5,
-            flexWrap: "wrap",
-            maxHeight: 80,
-            overflow: "auto",
-          }}
-        >
-          {allChannelOptions.slice(0, 20).map((opt) => (
-            <Chip
-              key={opt.value}
-              label={`Ch: ${opt.value}`}
-              size="small"
-              onClick={() => {
-                const newValue =
-                  inputValue +
-                  (inputValue && !inputValue.endsWith(" ") ? " " : "") +
-                  opt.value +
-                  " ";
-                setInputValue(newValue);
-                onChange(newValue.trim());
-                inputRef.current?.focus();
-              }}
-              sx={{
-                height: "22px",
-                fontSize: "0.7rem",
-                cursor: "pointer",
-                bgcolor: "#e3f2fd",
-                "&:hover": { bgcolor: "#bbdefb" },
-              }}
-            />
-          ))}
-          {allChannelOptions.length > 20 && (
-            <Typography
-              variant="caption"
-              sx={{ fontSize: "0.65rem", color: "#999", alignSelf: "center" }}
-            >
-              +{allChannelOptions.length - 20} more (type to search)
-            </Typography>
-          )}
-        </Box>
-      </Box>
+      <Typography
+        variant="caption"
+        sx={{ fontSize: "0.65rem", color: "#888", display: "block", mt: 0.5 }}
+      >
+        Type channel numbers to see suggestions. Use operators above or type
+        them directly.
+      </Typography>
     </Box>
   );
 };
