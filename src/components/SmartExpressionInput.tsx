@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Box,
   TextField,
@@ -145,7 +145,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
     }, 100);
   };
 
-  const handleBlur = () => {
+  const handleBlur = useCallback(() => {
     // Delay hiding suggestions to allow click
     setTimeout(() => {
       setShowSuggestions(false);
@@ -154,7 +154,7 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
         onChange(inputValue.trim());
       }
     }, 200);
-  };
+  }, [inputValue, expression, onChange]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && suggestions.length > 0) {
@@ -179,12 +179,10 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
           setCursorPosition(position);
           if (!value || value.endsWith(" ")) {
             setSuggestions(
-              allChannelOptions
-                .slice(0, 10)
-                .map((opt) => ({
-                  value: String(opt.value),
-                  label: opt.label || `Ch: ${opt.value}`,
-                })),
+              allChannelOptions.slice(0, 10).map((opt) => ({
+                value: String(opt.value),
+                label: opt.label || `Ch: ${opt.value}`,
+              })),
             );
             setShowSuggestions(true);
           }
@@ -261,54 +259,57 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
         </Paper>
       )}
 
-      {/* Expression Preview */}
-      <Paper
-        sx={{
-          mt: 1,
-          p: 1,
-          bgcolor: "#f8f9fa",
-          border: "1px solid #ddd",
-          minHeight: "40px",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        {inputValue ? (
-          <Typography
-            sx={{
-              fontFamily: "monospace",
-              fontSize: "0.85rem",
-              color: "#1976d2",
-              fontWeight: 600,
-            }}
-          >
-            {inputValue}
-          </Typography>
-        ) : (
-          <Typography
-            sx={{
-              fontSize: "0.75rem",
-              color: "#999",
-              fontStyle: "italic",
-            }}
-          >
-            Expression preview will appear here...
-          </Typography>
-        )}
-      </Paper>
-
-      {/* Help Text */}
-      <Typography
-        variant="caption"
-        sx={{
-          fontSize: "0.65rem",
-          color: "#666",
-          display: "block",
-          mt: 0.5,
-        }}
-      >
-        💡 Type channel numbers, constants, or click operator chips above
-      </Typography>
+      {/* Channel Options - Show next to expression */}
+      <Box sx={{ mt: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontSize: "0.7rem", color: "#666", mb: 0.5, display: "block" }}
+        >
+          Available Channels (click to add):
+        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 0.5,
+            flexWrap: "wrap",
+            maxHeight: 80,
+            overflow: "auto",
+          }}
+        >
+          {allChannelOptions.slice(0, 20).map((opt) => (
+            <Chip
+              key={opt.value}
+              label={`Ch: ${opt.value}`}
+              size="small"
+              onClick={() => {
+                const newValue =
+                  inputValue +
+                  (inputValue && !inputValue.endsWith(" ") ? " " : "") +
+                  opt.value +
+                  " ";
+                setInputValue(newValue);
+                onChange(newValue.trim());
+                inputRef.current?.focus();
+              }}
+              sx={{
+                height: "22px",
+                fontSize: "0.7rem",
+                cursor: "pointer",
+                bgcolor: "#e3f2fd",
+                "&:hover": { bgcolor: "#bbdefb" },
+              }}
+            />
+          ))}
+          {allChannelOptions.length > 20 && (
+            <Typography
+              variant="caption"
+              sx={{ fontSize: "0.65rem", color: "#999", alignSelf: "center" }}
+            >
+              +{allChannelOptions.length - 20} more (type to search)
+            </Typography>
+          )}
+        </Box>
+      </Box>
     </Box>
   );
 };

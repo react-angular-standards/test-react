@@ -392,39 +392,11 @@ const CustomQueryDrawerContent: React.FC<CustomQueryDrawerContentProps> = ({
                                       onExpressionChange(
                                         selection.testName,
                                         config.configName,
-                                        value
+                                        value,
                                       )
                                     }
-                                    placeholder="Type expression: e.g., id_1 + id_2 * 5"
+                                    placeholder="Type expression: e.g., 10306001 + 10306002 * 5"
                                   />
-
-                                  
-
-                                  <Box sx={{ mt: 1.5 }}>
-                                    <Typography
-                                      variant="subtitle2"
-                                      sx={{
-                                        mb: 0.5,
-                                        fontWeight: 600,
-                                        fontSize: "0.85rem",
-                                      }}
-                                    >
-                                      Expression Preview
-                                    </Typography>
-                                    <Paper
-                                      sx={{
-                                        p: 1,
-                                        bgcolor: "#f5f5f5",
-                                        border: "1px solid #ddd",
-                                        fontFamily: "monospace",
-                                        fontSize: "0.75rem",
-                                        minHeight: "30px",
-                                      }}
-                                    >
-                                      {config.channelExpression ||
-                                        "No expression yet"}
-                                    </Paper>
-                                  </Box>
 
                                   <Typography
                                     variant="subtitle2"

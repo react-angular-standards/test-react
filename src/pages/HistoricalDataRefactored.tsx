@@ -149,7 +149,9 @@ const HistoricalDataRefactored: React.FC = () => {
   // Handle config accordion toggle with data fetch
   const handleConfigToggle = (testName: string, configName: string) => {
     handleConfigAccordionToggle(testName, configName);
-    if (!cards[`${testName}_${configName}`]) {
+    const key = `${testName}_${configName}`;
+    // Always fetch if cards are not loaded for this config
+    if (!cards[key]) {
       fetchTestConfigDetails(testName, configName).then((result) => {
         if (result) {
           updateCardSelections(testName, configName, result.cards, {
@@ -162,6 +164,22 @@ const HistoricalDataRefactored: React.FC = () => {
           });
         }
       });
+    } else {
+      // Cards exist but cardSelections might be empty - ensure they're populated
+      const testSelection = testSelections.find((t) => t.testName === testName);
+      const configSelection = testSelection?.configSelections.find(
+        (c) => c.configName === configName,
+      );
+      if (configSelection && configSelection.cardSelections.length === 0) {
+        fetchTestConfigDetails(testName, configName).then((result) => {
+          if (result) {
+            updateCardSelections(testName, configName, result.cards, {
+              startTime: result.startTime,
+              endTime: result.endTime,
+            });
+          }
+        });
+      }
     }
   };
 
@@ -634,12 +652,97 @@ const HistoricalDataRefactored: React.FC = () => {
                     apply.
                   </Typography>
                 ) : (
-                  <CanvasJSReact.CanvasJSChart
-                    options={chartOptions}
-                    containerProps={{
-                      style: { width: "100%", height: "100%" },
+                  <Box
+                    sx={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
                     }}
-                  />
+                  >
+                    <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+                      <CanvasJSReact.CanvasJSChart
+                        options={chartOptions}
+                        containerProps={{
+                          style: { width: "100%", height: "100%" },
+                        }}
+                      />
+                    </Box>
+                    {/* Pagination for Plot */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        gap: 2,
+                        p: 1,
+                        borderTop: "1px solid #e0e0e0",
+                        bgcolor: "#fafafa",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "0.75rem" }}>
+                        Page {currentPage + 1} of{" "}
+                        {Math.max(1, Math.ceil(totalCount / pageSize))} (
+                        {totalCount} total)
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={currentPage === 0}
+                          onClick={() => setCurrentPage(0)}
+                          sx={{ minWidth: "auto", px: 1 }}
+                        >
+                          First
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={currentPage === 0}
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                          sx={{ minWidth: "auto", px: 1 }}
+                        >
+                          Prev
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={
+                            currentPage >= Math.ceil(totalCount / pageSize) - 1
+                          }
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          sx={{ minWidth: "auto", px: 1 }}
+                        >
+                          Next
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={
+                            currentPage >= Math.ceil(totalCount / pageSize) - 1
+                          }
+                          onClick={() =>
+                            setCurrentPage(Math.ceil(totalCount / pageSize) - 1)
+                          }
+                          sx={{ minWidth: "auto", px: 1 }}
+                        >
+                          Last
+                        </Button>
+                      </Box>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(0);
+                        }}
+                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                      >
+                        <option value={10}>10 / page</option>
+                        <option value={20}>20 / page</option>
+                        <option value={50}>50 / page</option>
+                        <option value={100}>100 / page</option>
+                      </select>
+                    </Box>
+                  </Box>
                 )}
               </Box>
             </Box>
