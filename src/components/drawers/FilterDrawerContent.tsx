@@ -44,7 +44,6 @@ interface FilterDrawerContentProps {
     configName: string,
     cardName: string,
     selected: any,
-    action: any,
   ) => void;
   onTimeChange: (
     testName: string,
@@ -122,7 +121,9 @@ const FilterDrawerContent: React.FC<FilterDrawerContentProps> = ({
             {testSelections
               .filter((sel) => sel.isSelected)
               .map((selection) => {
-                const test = tests.find((t) => t.TestName === selection.testName);
+                const test = tests.find(
+                  (t) => t.TestName === selection.testName,
+                );
                 if (!test) return null;
 
                 return (
@@ -161,179 +162,206 @@ const FilterDrawerContent: React.FC<FilterDrawerContentProps> = ({
                           color="primary"
                         />
                         <Box sx={{ flexGrow: 1, ml: 1 }}>
-                          <Typography sx={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                          <Typography
+                            sx={{ fontWeight: 600, fontSize: "0.85rem" }}
+                          >
                             {selection.testName}
                           </Typography>
                         </Box>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
-                      {selection.configSelections.map((config: ConfigSelection) => (
-                        <Accordion
-                          key={config.configName}
-                          expanded={config.isExpanded}
-                          onChange={() =>
-                            onConfigAccordionToggle(
-                              selection.testName,
-                              config.configName,
-                            )
-                          }
-                          sx={{
-                            mb: 1,
-                            border: "1px solid #e0e0e0",
-                            borderRadius: "4px !important",
-                            ml: 2,
-                          }}
-                        >
-                          <AccordionSummary
-                            expandIcon={<ExpandMoreIcon />}
+                      {selection.configSelections.map(
+                        (config: ConfigSelection) => (
+                          <Accordion
+                            key={config.configName}
+                            expanded={config.isExpanded}
+                            onChange={() =>
+                              onConfigAccordionToggle(
+                                selection.testName,
+                                config.configName,
+                              )
+                            }
                             sx={{
-                              bgcolor: config.isExpanded ? "#e8f4f8" : "#fafafa",
-                              borderRadius: "4px",
-                              "&.Mui-expanded": { borderRadius: "4px 4px 0 0" },
-                              minHeight: "36px",
-                              "& .MuiAccordionSummary-content": { my: 0.5 },
+                              mb: 1,
+                              border: "1px solid #e0e0e0",
+                              borderRadius: "4px !important",
+                              ml: 2,
                             }}
                           >
-                            <Typography sx={{ fontWeight: 600, fontSize: "0.8rem" }}>
-                              {config.configName}
-                            </Typography>
-                          </AccordionSummary>
-                          <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
-                            <Box sx={{ mb: 1.5 }}>
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon />}
+                              sx={{
+                                bgcolor: config.isExpanded
+                                  ? "#e8f4f8"
+                                  : "#fafafa",
+                                borderRadius: "4px",
+                                "&.Mui-expanded": {
+                                  borderRadius: "4px 4px 0 0",
+                                },
+                                minHeight: "36px",
+                                "& .MuiAccordionSummary-content": { my: 0.5 },
+                              }}
+                            >
                               <Typography
-                                variant="subtitle2"
-                                sx={{
-                                  mb: 0.5,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  fontSize: "0.85rem",
-                                }}
+                                sx={{ fontWeight: 600, fontSize: "0.8rem" }}
                               >
-                                <AccessTimeIcon sx={{ mr: 0.5, fontSize: "1rem" }} />
-                                Time Range
+                                {config.configName}
                               </Typography>
-                              <Box sx={{ display: "flex", gap: 1, mt: 0.5, mb: 1 }}>
-                                <DateTimePicker
-                                  label="Start Time"
-                                  value={config.startTime}
-                                  onChange={(value) =>
-                                    onTimeChange(
-                                      selection.testName,
-                                      config.configName,
-                                      "startTime",
-                                      value,
-                                    )
-                                  }
-                                  slotProps={{
-                                    textField: {
-                                      size: "small",
-                                      fullWidth: true,
-                                    },
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ pt: 1, pb: 1.5 }}>
+                              <Box sx={{ mb: 1.5 }}>
+                                <Typography
+                                  variant="subtitle2"
+                                  sx={{
+                                    mb: 0.5,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    fontSize: "0.85rem",
                                   }}
-                                  views={[
-                                    "year",
-                                    "month",
-                                    "day",
-                                    "hours",
-                                    "minutes",
-                                    "seconds",
-                                  ]}
-                                  ampm={false}
-                                />
-                                <DateTimePicker
-                                  label="End Time"
-                                  value={config.endTime}
-                                  onChange={(value) =>
-                                    onTimeChange(
-                                      selection.testName,
-                                      config.configName,
-                                      "endTime",
-                                      value,
-                                    )
-                                  }
-                                  slotProps={{
-                                    textField: {
-                                      size: "small",
-                                      fullWidth: true,
-                                    },
+                                >
+                                  <AccessTimeIcon
+                                    sx={{ mr: 0.5, fontSize: "1rem" }}
+                                  />
+                                  Time Range
+                                </Typography>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    gap: 1,
+                                    mt: 0.5,
+                                    mb: 1,
                                   }}
-                                  views={[
-                                    "year",
-                                    "month",
-                                    "day",
-                                    "hours",
-                                    "minutes",
-                                    "seconds",
-                                  ]}
-                                  ampm={false}
-                                />
-                              </Box>
-                            </Box>
-                            <Divider sx={{ my: 1 }} />
-                            <Box>
-                              <Typography
-                                variant="subtitle2"
-                                sx={{ mb: 1, fontWeight: 600, fontSize: "0.85rem" }}
-                              >
-                                Card Types & Channels
-                              </Typography>
-                              {config.cardSelections.map((cardSel: CardSelection) => {
-                                const channelOptions = (
-                                  channels[
-                                    `${selection.testName}_${config.configName}_${cardSel.cardName}`
-                                  ] || []
-                                ).map((channel) => ({
-                                  value: channel.toString(),
-                                  label: `Ch: ${channel}`,
-                                }));
-
-                                return (
-                                  <Paper
-                                    key={cardSel.cardName}
-                                    sx={{
-                                      mb: 1,
-                                      border: "1px solid #e0e0e0",
-                                      borderRadius: 1,
+                                >
+                                  <DateTimePicker
+                                    label="Start Time"
+                                    value={config.startTime}
+                                    onChange={(value) =>
+                                      onTimeChange(
+                                        selection.testName,
+                                        config.configName,
+                                        "startTime",
+                                        value,
+                                      )
+                                    }
+                                    slotProps={{
+                                      textField: {
+                                        size: "small",
+                                        fullWidth: true,
+                                      },
                                     }}
-                                  >
-                                    <Box sx={{ p: 0.75, bgcolor: "#f8f9fa" }}>
-                                      <Typography
+                                    views={[
+                                      "year",
+                                      "month",
+                                      "day",
+                                      "hours",
+                                      "minutes",
+                                      "seconds",
+                                    ]}
+                                    ampm={false}
+                                  />
+                                  <DateTimePicker
+                                    label="End Time"
+                                    value={config.endTime}
+                                    onChange={(value) =>
+                                      onTimeChange(
+                                        selection.testName,
+                                        config.configName,
+                                        "endTime",
+                                        value,
+                                      )
+                                    }
+                                    slotProps={{
+                                      textField: {
+                                        size: "small",
+                                        fullWidth: true,
+                                      },
+                                    }}
+                                    views={[
+                                      "year",
+                                      "month",
+                                      "day",
+                                      "hours",
+                                      "minutes",
+                                      "seconds",
+                                    ]}
+                                    ampm={false}
+                                  />
+                                </Box>
+                              </Box>
+                              <Divider sx={{ my: 1 }} />
+                              <Box>
+                                <Typography
+                                  variant="subtitle2"
+                                  sx={{
+                                    mb: 1,
+                                    fontWeight: 600,
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  Card Types & Channels
+                                </Typography>
+                                {config.cardSelections.map(
+                                  (cardSel: CardSelection) => {
+                                    const channelOptions = (
+                                      channels[
+                                        `${selection.testName}_${config.configName}_${cardSel.cardName}`
+                                      ] || []
+                                    ).map((channel) => ({
+                                      value: channel.toString(),
+                                      label: `Ch: ${channel}`,
+                                    }));
+
+                                    return (
+                                      <Paper
+                                        key={cardSel.cardName}
                                         sx={{
-                                          fontWeight: 600,
-                                          fontSize: "0.8rem",
-                                          mb: 0.5,
+                                          mb: 1,
+                                          border: "1px solid #e0e0e0",
+                                          borderRadius: 1,
                                         }}
                                       >
-                                        {cardSel.cardName}
-                                      </Typography>
-                                      <CustomSelect
-                                        isMulti={true}
-                                        options={channelOptions}
-                                        value={channelOptions.filter((option) =>
-                                          cardSel.selectedChannels.includes(
-                                            Number(option.value),
-                                          ),
-                                        )}
-                                        onChange={(selected, action) =>
-                                          onChannelSelect(
-                                            selection.testName,
-                                            config.configName,
-                                            cardSel.cardName,
-                                            selected as MultiValue<SelectOption>,
-                                            action,
-                                          )
-                                        }
-                                        placeholder="Select channels..."
-                                      />
-                                    </Box>
-                                  </Paper>
-                                );
-                              })}
-                            </Box>
-                          </AccordionDetails>
-                        </Accordion>
-                      ))}
+                                        <Box
+                                          sx={{ p: 0.75, bgcolor: "#f8f9fa" }}
+                                        >
+                                          <Typography
+                                            sx={{
+                                              fontWeight: 600,
+                                              fontSize: "0.8rem",
+                                              mb: 0.5,
+                                            }}
+                                          >
+                                            {cardSel.cardName}
+                                          </Typography>
+                                          <CustomSelect
+                                            isMulti={true}
+                                            options={channelOptions}
+                                            value={channelOptions.filter(
+                                              (option) =>
+                                                cardSel.selectedChannels.includes(
+                                                  Number(option.value),
+                                                ),
+                                            )}
+                                            onChange={(selected) =>
+                                              onChannelSelect(
+                                                selection.testName,
+                                                config.configName,
+                                                cardSel.cardName,
+                                                selected as MultiValue<SelectOption>,
+                                              )
+                                            }
+                                            placeholder="Select channels..."
+                                          />
+                                        </Box>
+                                      </Paper>
+                                    );
+                                  },
+                                )}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        ),
+                      )}
                     </AccordionDetails>
                   </Accordion>
                 );

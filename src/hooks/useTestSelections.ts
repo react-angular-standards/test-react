@@ -91,7 +91,6 @@ const useTestSelections = (tests: Test[]) => {
     configName: string,
     cardName: string,
     selected: MultiValue<SelectOption> | null,
-    action: ActionMeta<SelectOption>,
   ) => {
     const selectedChannels = selected
       ? selected.map((option) => Number(option.value))

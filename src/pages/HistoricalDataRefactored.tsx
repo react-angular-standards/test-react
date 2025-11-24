@@ -26,6 +26,7 @@ import useTestSelections from "../hooks/useTestSelections";
 import useCustomQuerySelections from "../hooks/useCustomQuerySelections";
 import FilterDrawerContent from "../components/drawers/FilterDrawerContent";
 import CustomQueryDrawerContent from "../components/drawers/CustomQueryDrawerContent";
+import Pagination from "../components/Pagination";
 import {
   SelectedConfig,
   DataRow,
@@ -179,16 +180,15 @@ const HistoricalDataRefactored: React.FC = () => {
     configName: string,
   ) => {
     handleCustomQueryConfigAccordionToggle(testName, configName);
-    if (!cards[`${testName}_${configName}`]) {
-      fetchTestConfigDetails(testName, configName).then((result) => {
-        if (result) {
-          updateCustomQueryTime(testName, configName, {
-            startTime: result.startTime,
-            endTime: result.endTime,
-          });
-        }
-      });
-    }
+    // Always fetch to ensure channels are loaded for auto-suggestions
+    fetchTestConfigDetails(testName, configName).then((result) => {
+      if (result) {
+        updateCustomQueryTime(testName, configName, {
+          startTime: result.startTime,
+          endTime: result.endTime,
+        });
+      }
+    });
   };
 
   // Load data
@@ -658,81 +658,17 @@ const HistoricalDataRefactored: React.FC = () => {
                         }}
                       />
                     </Box>
-                    {/* Pagination for Plot */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        alignItems: "center",
-                        gap: 2,
-                        p: 1,
-                        borderTop: "1px solid #e0e0e0",
-                        bgcolor: "#fafafa",
+                    {/* Pagination for Plot - same as table */}
+                    <Pagination
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      totalCount={totalCount}
+                      onPageChange={setCurrentPage}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setCurrentPage(0);
                       }}
-                    >
-                      <Typography variant="body2" sx={{ fontSize: "0.75rem" }}>
-                        Page {currentPage + 1} of{" "}
-                        {Math.max(1, Math.ceil(totalCount / pageSize))} (
-                        {totalCount} total)
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={currentPage === 0}
-                          onClick={() => setCurrentPage(0)}
-                          sx={{ minWidth: "auto", px: 1 }}
-                        >
-                          First
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={currentPage === 0}
-                          onClick={() => setCurrentPage(currentPage - 1)}
-                          sx={{ minWidth: "auto", px: 1 }}
-                        >
-                          Prev
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={
-                            currentPage >= Math.ceil(totalCount / pageSize) - 1
-                          }
-                          onClick={() => setCurrentPage(currentPage + 1)}
-                          sx={{ minWidth: "auto", px: 1 }}
-                        >
-                          Next
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={
-                            currentPage >= Math.ceil(totalCount / pageSize) - 1
-                          }
-                          onClick={() =>
-                            setCurrentPage(Math.ceil(totalCount / pageSize) - 1)
-                          }
-                          sx={{ minWidth: "auto", px: 1 }}
-                        >
-                          Last
-                        </Button>
-                      </Box>
-                      <select
-                        value={pageSize}
-                        onChange={(e) => {
-                          setPageSize(Number(e.target.value));
-                          setCurrentPage(0);
-                        }}
-                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                      >
-                        <option value={10}>10 / page</option>
-                        <option value={20}>20 / page</option>
-                        <option value={50}>50 / page</option>
-                        <option value={100}>100 / page</option>
-                      </select>
-                    </Box>
+                    />
                   </Box>
                 )}
               </Box>
