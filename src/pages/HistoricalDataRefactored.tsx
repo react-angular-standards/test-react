@@ -53,17 +53,13 @@ const HistoricalDataRefactored: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"filter" | "customQuery">(
     "filter",
   );
-  const [resultTab, setResultTab] = useState<"filter" | "customQuery">(
-    "filter",
-  );
-  const [filterView, setFilterView] = useState<"table" | "plot">("table");
-  const [customQueryView, setCustomQueryView] = useState<"table" | "plot">(
-    "table",
-  );
+  const [view, setView] = useState<"table" | "plot">("table");
 
-  // Separate data states for filter and custom query
-  const [filterData, setFilterData] = useState<DataRow[]>([]);
-  const [customQueryData, setCustomQueryData] = useState<DataRow[]>([]);
+  // Single data state - either filter OR custom query data
+  const [tableData, setTableData] = useState<DataRow[]>([]);
+  const [dataSource, setDataSource] = useState<"filter" | "customQuery" | null>(
+    null,
+  );
 
   const [selectedConfigs, setSelectedConfigs] = useState<SelectedConfig[]>([]);
   const [selectedCustomQueries, setSelectedCustomQueries] = useState<
@@ -76,14 +72,10 @@ const HistoricalDataRefactored: React.FC = () => {
   >([]);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Separate pagination for filter and custom query
-  const [filterTotalCount, setFilterTotalCount] = useState(0);
-  const [filterCurrentPage, setFilterCurrentPage] = useState(0);
-  const [filterPageSize, setFilterPageSize] = useState(10);
-
-  const [customQueryTotalCount, setCustomQueryTotalCount] = useState(0);
-  const [customQueryCurrentPage, setCustomQueryCurrentPage] = useState(0);
-  const [customQueryPageSize, setCustomQueryPageSize] = useState(10);
+  // Single pagination
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
   // API base
   const apiBase = UrlConstant.HISTORICAL_DATA_API;
@@ -205,87 +197,87 @@ const HistoricalDataRefactored: React.FC = () => {
     });
   };
 
-  // Load filter data
-  const loadFilterData = async () => {
-    if (selectedConfigs.length === 0) return;
+  // Load data based on current data source
+  const loadData = async () => {
+    if (dataSource === "filter" && selectedConfigs.length > 0) {
+      setDataLoading(true);
+      try {
+        let allData: DataRow[] = [];
+        let total = 0;
 
-    setDataLoading(true);
-    try {
-      let allData: DataRow[] = [];
-      let total = 0;
-
-      for (const sc of selectedConfigs) {
-        const { data, totalCount } = await fetchFilteredData(
-          filterCurrentPage,
-          filterPageSize,
-          sc.testName,
-          sc.configSelection,
-        );
-        allData = allData.concat(data);
-        total += totalCount;
-      }
-
-      // Sort by timestamp
-      allData.sort(
-        (a, b) =>
-          new Date(a.timestamp || a.Timestamp).getTime() -
-          new Date(b.timestamp || b.Timestamp).getTime(),
-      );
-
-      setFilterData(allData);
-      setFilterTotalCount(total);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDataLoading(false);
-    }
-  };
-
-  // Load custom query data
-  const loadCustomQueryData = async () => {
-    if (selectedCustomQueries.length === 0) return;
-
-    setDataLoading(true);
-    try {
-      let allData: DataRow[] = [];
-      let total = 0;
-
-      for (const cq of selectedCustomQueries) {
-        const { data: customData, totalCount: customTotalCount } =
-          await fetchCustomQueryData(
-            customQueryCurrentPage,
-            customQueryPageSize,
-            cq.testName,
-            cq.configName,
-            cq.config,
-            cq.pushToDB,
+        for (const sc of selectedConfigs) {
+          const { data, totalCount: count } = await fetchFilteredData(
+            currentPage,
+            pageSize,
+            sc.testName,
+            sc.configSelection,
           );
-        allData = allData.concat(customData);
-        total += customTotalCount;
+          allData = allData.concat(data);
+          total += count;
+        }
+
+        // Sort by timestamp
+        allData.sort(
+          (a, b) =>
+            new Date(a.timestamp || a.Timestamp).getTime() -
+            new Date(b.timestamp || b.Timestamp).getTime(),
+        );
+
+        setTableData(allData);
+        setTotalCount(total);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setDataLoading(false);
       }
+    } else if (
+      dataSource === "customQuery" &&
+      selectedCustomQueries.length > 0
+    ) {
+      setDataLoading(true);
+      try {
+        let allData: DataRow[] = [];
+        let total = 0;
 
-      // Sort by Timestamp
-      allData.sort(
-        (a, b) =>
-          new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime(),
-      );
+        for (const cq of selectedCustomQueries) {
+          const { data: customData, totalCount: count } =
+            await fetchCustomQueryData(
+              currentPage,
+              pageSize,
+              cq.testName,
+              cq.configName,
+              cq.config,
+              cq.pushToDB,
+            );
+          allData = allData.concat(customData);
+          total += count;
+        }
 
-      setCustomQueryData(allData);
-      setCustomQueryTotalCount(total);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDataLoading(false);
+        // Sort by Timestamp
+        allData.sort(
+          (a, b) =>
+            new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime(),
+        );
+
+        setTableData(allData);
+        setTotalCount(total);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setDataLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadFilterData();
-  }, [filterCurrentPage, selectedConfigs, filterPageSize]);
-
-  useEffect(() => {
-    loadCustomQueryData();
-  }, [customQueryCurrentPage, selectedCustomQueries, customQueryPageSize]);
+    loadData();
+  }, [
+    currentPage,
+    pageSize,
+    dataSource,
+    selectedConfigs,
+    selectedCustomQueries,
+  ]);
 
   // Handle submit
   const handleSubmit = async (pushToDB: boolean = false) => {
@@ -335,30 +327,33 @@ const HistoricalDataRefactored: React.FC = () => {
       }
     });
 
-    if (
-      selectedConfigsList.length === 0 &&
-      selectedCustomQueriesList.length === 0
-    ) {
-      setError(
-        "Please select at least one channel in filter or configure a valid custom query",
-      );
-      return;
-    }
-
+    // Clear previous data first
+    setTableData([]);
+    setTotalCount(0);
+    setCurrentPage(0);
     setError(null);
 
-    // Update filter selections and switch to filter result tab
-    if (selectedConfigsList.length > 0) {
+    // Handle filter submit
+    if (activeTab === "filter") {
+      if (selectedConfigsList.length === 0) {
+        setError("Please select at least one channel");
+        return;
+      }
       setSelectedConfigs(selectedConfigsList);
-      setFilterCurrentPage(0);
-      setResultTab("filter");
+      setSelectedCustomQueries([]); // Clear other source
+      setDataSource("filter");
     }
-
-    // Update custom query selections and switch to custom query result tab
-    if (selectedCustomQueriesList.length > 0) {
+    // Handle custom query submit
+    else if (activeTab === "customQuery") {
+      if (selectedCustomQueriesList.length === 0) {
+        setError(
+          "Please configure a valid custom query with expression and output name",
+        );
+        return;
+      }
       setSelectedCustomQueries(selectedCustomQueriesList);
-      setCustomQueryCurrentPage(0);
-      setResultTab("customQuery");
+      setSelectedConfigs([]); // Clear other source
+      setDataSource("customQuery");
     }
 
     setDrawerOpen(false);
@@ -367,21 +362,21 @@ const HistoricalDataRefactored: React.FC = () => {
   // Handle clear for filter
   const handleFilterClear = () => {
     clearAllSelections();
-    setFilterData([]);
-    setFilterTotalCount(0);
+    setTableData([]);
+    setTotalCount(0);
     setSelectedConfigs([]);
-    setFilterCurrentPage(0);
-    setFilterPageSize(10);
+    setCurrentPage(0);
+    setDataSource(null);
   };
 
   // Handle clear for custom query
   const handleCustomQueryClear = () => {
     clearAllCustomQuerySelections();
-    setCustomQueryData([]);
-    setCustomQueryTotalCount(0);
+    setTableData([]);
+    setTotalCount(0);
     setSelectedCustomQueries([]);
-    setCustomQueryCurrentPage(0);
-    setCustomQueryPageSize(10);
+    setCurrentPage(0);
+    setDataSource(null);
   };
 
   // Toggle drawer
@@ -397,37 +392,27 @@ const HistoricalDataRefactored: React.FC = () => {
     setActiveTab(newValue);
   };
 
-  // Handle result tab change
-  const handleResultTabChange = (
-    _: React.SyntheticEvent,
-    newValue: "filter" | "customQuery",
+  // Handle view change
+  const handleViewChange = (
+    _: React.MouseEvent<HTMLElement>,
+    newView: "table" | "plot" | null,
   ) => {
-    setResultTab(newValue);
+    if (newView) {
+      setView(newView);
+    }
   };
 
-  // Generate columns for filter data
-  const filterColumns: GridColDef[] = useMemo(() => {
-    if (filterData.length === 0) return [];
-    const keys = Object.keys(filterData[0]).filter((key) => key !== "id");
+  // Generate columns dynamically from data
+  const columns: GridColDef[] = useMemo(() => {
+    if (tableData.length === 0) return [];
+    const keys = Object.keys(tableData[0]).filter((key) => key !== "id");
     return keys.map((key) => ({
       field: key,
       headerName: key.replace(/([A-Z])/g, " $1").trim(),
       flex: 1,
       sortable: false,
     }));
-  }, [filterData]);
-
-  // Generate columns for custom query data
-  const customQueryColumns: GridColDef[] = useMemo(() => {
-    if (customQueryData.length === 0) return [];
-    const keys = Object.keys(customQueryData[0]).filter((key) => key !== "id");
-    return keys.map((key) => ({
-      field: key,
-      headerName: key.replace(/([A-Z])/g, " $1").trim(),
-      flex: 1,
-      sortable: false,
-    }));
-  }, [customQueryData]);
+  }, [tableData]);
 
   // Helper function to generate chart data from any data source
   const generateChartData = (
@@ -478,20 +463,19 @@ const HistoricalDataRefactored: React.FC = () => {
     return [];
   };
 
-  // Filter chart data - handle both lowercase and uppercase field names
-  const filterChartData: SeriesData[] = useMemo(() => {
-    if (filterData.length === 0) return [];
-    // Check which field naming convention is used
-    const firstRow = filterData[0];
+  // Chart data - handle both data formats
+  const chartData: SeriesData[] = useMemo(() => {
+    if (tableData.length === 0) return [];
+
+    const firstRow = tableData[0];
     const timestampField = "timestamp" in firstRow ? "timestamp" : "Timestamp";
-    // For filter data with channel columns like channel_123, we need different logic
     const hasChannelColumn = "Channel" in firstRow || "channel" in firstRow;
 
     if (hasChannelColumn) {
       const channelField = "Channel" in firstRow ? "Channel" : "channel";
       const valueField = "Value" in firstRow ? "Value" : "value";
       return generateChartData(
-        filterData,
+        tableData,
         timestampField,
         channelField,
         valueField,
@@ -503,14 +487,14 @@ const HistoricalDataRefactored: React.FC = () => {
       );
       if (channelKeys.length === 0) return [];
 
-      const seriesData = channelKeys.map((channelKey) => {
+      return channelKeys.map((channelKey) => {
         const channelName = channelKey.replace("channel_", "");
         return {
           type: "line",
           name: `Ch ${channelName}`,
           showInLegend: true,
           visible: true,
-          dataPoints: filterData
+          dataPoints: tableData
             .filter(
               (row: any) =>
                 row[timestampField] && !isNaN(Number(row[channelKey])),
@@ -521,92 +505,56 @@ const HistoricalDataRefactored: React.FC = () => {
             })),
         };
       });
-
-      return seriesData;
     }
-  }, [filterData]);
+  }, [tableData]);
 
-  // Custom query chart data
-  const customQueryChartData: SeriesData[] = useMemo(() => {
-    return generateChartData(customQueryData, "Timestamp", "Channel", "Value");
-  }, [customQueryData]);
-
-  // Chart options factory
-  const createChartOptions = (chartData: SeriesData[], title: string) => ({
-    animationEnabled: true,
-    theme: "light2",
-    zoomEnabled: true,
-    zoomType: "xy",
-    title: {
-      fontSize: 20,
-      text: title,
-    },
-    axisX: {
-      title: "Time",
-      titleFontSize: 14,
-      valueFormatString: "HH:mm:ss",
-      labelAngle: -45,
-    },
-    axisY: {
-      title: "Value",
-      titleFontSize: 14,
-    },
-    legend: {
-      cursor: "pointer",
-      itemclick: (e: any) => {
-        if (
-          typeof e.dataSeries.visible === "undefined" ||
-          e.dataSeries.visible
-        ) {
-          e.dataSeries.visible = false;
-        } else {
-          e.dataSeries.visible = true;
-        }
-        e.chart.render();
+  // Chart options
+  const chartOptions = useMemo(
+    () => ({
+      animationEnabled: true,
+      theme: "light2",
+      zoomEnabled: true,
+      zoomType: "xy",
+      title: {
+        fontSize: 20,
+        text: dataSource === "filter" ? "Filter Data" : "Custom Query Data",
       },
-    },
-    data: chartData,
-  });
-
-  const filterChartOptions = useMemo(
-    () => createChartOptions(filterChartData, "Filter Data"),
-    [filterChartData],
-  );
-
-  const customQueryChartOptions = useMemo(
-    () => createChartOptions(customQueryChartData, "Custom Query Data"),
-    [customQueryChartData],
+      axisX: {
+        title: "Time",
+        titleFontSize: 14,
+        valueFormatString: "HH:mm:ss",
+        labelAngle: -45,
+      },
+      axisY: {
+        title: "Value",
+        titleFontSize: 14,
+      },
+      legend: {
+        cursor: "pointer",
+        itemclick: (e: any) => {
+          if (
+            typeof e.dataSeries.visible === "undefined" ||
+            e.dataSeries.visible
+          ) {
+            e.dataSeries.visible = false;
+          } else {
+            e.dataSeries.visible = true;
+          }
+          e.chart.render();
+        },
+      },
+      data: chartData,
+    }),
+    [chartData, dataSource],
   );
 
   // Handle CSV export
   const handleExportCSV = () => {
-    const data = resultTab === "filter" ? filterData : customQueryData;
-    const columns = resultTab === "filter" ? filterColumns : customQueryColumns;
     const testName =
       selectedConfigs.length > 0 ? selectedConfigs[0].testName : undefined;
-    const result = exportToCSV(data, columns, testName);
+    const result = exportToCSV(tableData, columns, testName);
     if (!result.success && result.error) {
       setError(result.error);
-    }
-  };
-
-  // Handle view change for filter
-  const handleFilterViewChange = (
-    _: React.MouseEvent<HTMLElement>,
-    newView: "table" | "plot" | null,
-  ) => {
-    if (newView) {
-      setFilterView(newView);
-    }
-  };
-
-  // Handle view change for custom query
-  const handleCustomQueryViewChange = (
-    _: React.MouseEvent<HTMLElement>,
-    newView: "table" | "plot" | null,
-  ) => {
-    if (newView) {
-      setCustomQueryView(newView);
     }
   };
 
@@ -637,9 +585,8 @@ const HistoricalDataRefactored: React.FC = () => {
     (sel) => sel.isSelected,
   ).length;
 
-  // Check if we have data in each tab
-  const hasFilterData = filterData.length > 0;
-  const hasCustomQueryData = customQueryData.length > 0;
+  // Check if we have data
+  const hasData = tableData.length > 0;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -661,41 +608,11 @@ const HistoricalDataRefactored: React.FC = () => {
                 sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
               >
                 <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                  {/* Result Tabs */}
-                  <Tabs
-                    value={resultTab}
-                    onChange={handleResultTabChange}
-                    sx={{
-                      minHeight: "36px",
-                      "& .MuiTab-root": {
-                        fontSize: "0.8rem",
-                        minHeight: "36px",
-                        textTransform: "none",
-                        py: 0,
-                      },
-                    }}
-                  >
-                    <Tab
-                      label={`Filter ${hasFilterData ? `(${filterData.length})` : ""}`}
-                      value="filter"
-                    />
-                    <Tab
-                      label={`Custom Query ${hasCustomQueryData ? `(${customQueryData.length})` : ""}`}
-                      value="customQuery"
-                    />
-                  </Tabs>
-
-                  {/* View Toggle for current tab */}
+                  {/* View Toggle */}
                   <ToggleButtonGroup
-                    value={
-                      resultTab === "filter" ? filterView : customQueryView
-                    }
+                    value={view}
                     exclusive
-                    onChange={
-                      resultTab === "filter"
-                        ? handleFilterViewChange
-                        : handleCustomQueryViewChange
-                    }
+                    onChange={handleViewChange}
                     aria-label="view switch"
                     sx={{
                       backgroundColor: "#f0f0f0",
@@ -725,11 +642,7 @@ const HistoricalDataRefactored: React.FC = () => {
                     size="medium"
                     startIcon={<DownloadIcon />}
                     onClick={handleExportCSV}
-                    disabled={
-                      resultTab === "filter"
-                        ? !hasFilterData
-                        : !hasCustomQueryData
-                    }
+                    disabled={!hasData}
                     sx={{
                       fontSize: "0.85rem",
                       textTransform: "none",
@@ -739,6 +652,17 @@ const HistoricalDataRefactored: React.FC = () => {
                   >
                     Export CSV
                   </Button>
+                  {/* Data source indicator */}
+                  {dataSource && (
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "#666", fontSize: "0.8rem" }}
+                    >
+                      Source:{" "}
+                      {dataSource === "filter" ? "Filter" : "Custom Query"} (
+                      {tableData.length} rows)
+                    </Typography>
+                  )}
                 </Box>
                 <IconButton
                   color="inherit"
@@ -771,175 +695,85 @@ const HistoricalDataRefactored: React.FC = () => {
                 </Box>
               )}
 
-              {/* Data View - Filter Tab */}
-              {resultTab === "filter" && (
-                <Box
-                  sx={{
-                    height: "calc(100vh - 250px)",
-                    minHeight: 600,
-                    width: "100%",
-                    overflow: "hidden",
-                  }}
-                >
-                  {!hasFilterData ? (
-                    <Box
-                      sx={{
-                        p: 4,
-                        textAlign: "center",
-                        bgcolor: "#f5f5f5",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body1" color="text.secondary">
-                        No filter data. Select channels from the Filter tab and
-                        click Apply.
-                      </Typography>
-                    </Box>
-                  ) : filterView === "table" ? (
-                    <DataGrid
-                      rows={filterData}
-                      columns={filterColumns}
-                      loading={loading || dataLoading}
-                      paginationMode="server"
-                      rowCount={filterTotalCount}
-                      paginationModel={{
-                        page: filterCurrentPage,
-                        pageSize: filterPageSize,
-                      }}
-                      onPaginationModelChange={(model) => {
-                        setFilterCurrentPage(model.page);
-                        setFilterPageSize(model.pageSize);
-                      }}
-                      pageSizeOptions={[10, 20, 50, 100]}
-                      sx={{
-                        boxShadow: 1,
-                        borderRadius: 1,
-                        bgcolor: "background.paper",
-                        border: 1,
-                        borderColor: "divider",
-                        "& .MuiDataGrid-columnHeaders": { bgcolor: "#f5f5f5" },
-                        fontSize: "0.75rem",
-                      }}
-                    />
-                  ) : filterChartData.length === 0 ? (
-                    <Typography sx={{ p: 2, textAlign: "center" }}>
-                      No data available for plotting.
+              {/* Data View */}
+              <Box
+                sx={{
+                  height: "calc(100vh - 250px)",
+                  minHeight: 600,
+                  width: "100%",
+                  overflow: "hidden",
+                }}
+              >
+                {!hasData ? (
+                  <Box
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      bgcolor: "#f5f5f5",
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography variant="body1" color="text.secondary">
+                      No data. Select options from the drawer and click
+                      Apply/View.
                     </Typography>
-                  ) : (
-                    <Box
-                      sx={{
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                      }}
-                    >
-                      <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                        <CanvasJSReact.CanvasJSChart
-                          options={filterChartOptions}
-                          containerProps={{
-                            style: { width: "100%", height: "100%" },
-                          }}
-                        />
-                      </Box>
-                      <Pagination
-                        currentPage={filterCurrentPage}
-                        pageSize={filterPageSize}
-                        totalCount={filterTotalCount}
-                        onPageChange={setFilterCurrentPage}
-                        onPageSizeChange={(size) => {
-                          setFilterPageSize(size);
-                          setFilterCurrentPage(0);
+                  </Box>
+                ) : view === "table" ? (
+                  <DataGrid
+                    rows={tableData}
+                    columns={columns}
+                    loading={loading || dataLoading}
+                    paginationMode="server"
+                    rowCount={totalCount}
+                    paginationModel={{ page: currentPage, pageSize: pageSize }}
+                    onPaginationModelChange={(model) => {
+                      setCurrentPage(model.page);
+                      setPageSize(model.pageSize);
+                    }}
+                    pageSizeOptions={[10, 20, 50, 100]}
+                    sx={{
+                      boxShadow: 1,
+                      borderRadius: 1,
+                      bgcolor: "background.paper",
+                      border: 1,
+                      borderColor: "divider",
+                      "& .MuiDataGrid-columnHeaders": { bgcolor: "#f5f5f5" },
+                      fontSize: "0.75rem",
+                    }}
+                  />
+                ) : chartData.length === 0 ? (
+                  <Typography sx={{ p: 2, textAlign: "center" }}>
+                    No data available for plotting.
+                  </Typography>
+                ) : (
+                  <Box
+                    sx={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+                      <CanvasJSReact.CanvasJSChart
+                        options={chartOptions}
+                        containerProps={{
+                          style: { width: "100%", height: "100%" },
                         }}
                       />
                     </Box>
-                  )}
-                </Box>
-              )}
-
-              {/* Data View - Custom Query Tab */}
-              {resultTab === "customQuery" && (
-                <Box
-                  sx={{
-                    height: "calc(100vh - 250px)",
-                    minHeight: 600,
-                    width: "100%",
-                    overflow: "hidden",
-                  }}
-                >
-                  {!hasCustomQueryData ? (
-                    <Box
-                      sx={{
-                        p: 4,
-                        textAlign: "center",
-                        bgcolor: "#f5f5f5",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body1" color="text.secondary">
-                        No custom query data. Configure a query from the Custom
-                        Query tab and click View or Save & View.
-                      </Typography>
-                    </Box>
-                  ) : customQueryView === "table" ? (
-                    <DataGrid
-                      rows={customQueryData}
-                      columns={customQueryColumns}
-                      loading={loading || dataLoading}
-                      paginationMode="server"
-                      rowCount={customQueryTotalCount}
-                      paginationModel={{
-                        page: customQueryCurrentPage,
-                        pageSize: customQueryPageSize,
-                      }}
-                      onPaginationModelChange={(model) => {
-                        setCustomQueryCurrentPage(model.page);
-                        setCustomQueryPageSize(model.pageSize);
-                      }}
-                      pageSizeOptions={[10, 20, 50, 100]}
-                      sx={{
-                        boxShadow: 1,
-                        borderRadius: 1,
-                        bgcolor: "background.paper",
-                        border: 1,
-                        borderColor: "divider",
-                        "& .MuiDataGrid-columnHeaders": { bgcolor: "#f5f5f5" },
-                        fontSize: "0.75rem",
+                    <Pagination
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      totalCount={totalCount}
+                      onPageChange={setCurrentPage}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setCurrentPage(0);
                       }}
                     />
-                  ) : customQueryChartData.length === 0 ? (
-                    <Typography sx={{ p: 2, textAlign: "center" }}>
-                      No data available for plotting.
-                    </Typography>
-                  ) : (
-                    <Box
-                      sx={{
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                      }}
-                    >
-                      <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                        <CanvasJSReact.CanvasJSChart
-                          options={customQueryChartOptions}
-                          containerProps={{
-                            style: { width: "100%", height: "100%" },
-                          }}
-                        />
-                      </Box>
-                      <Pagination
-                        currentPage={customQueryCurrentPage}
-                        pageSize={customQueryPageSize}
-                        totalCount={customQueryTotalCount}
-                        onPageChange={setCustomQueryCurrentPage}
-                        onPageSizeChange={(size) => {
-                          setCustomQueryPageSize(size);
-                          setCustomQueryCurrentPage(0);
-                        }}
-                      />
-                    </Box>
-                  )}
-                </Box>
-              )}
+                  </Box>
+                )}
+              </Box>
             </Box>
 
             {/* Drawer */}
