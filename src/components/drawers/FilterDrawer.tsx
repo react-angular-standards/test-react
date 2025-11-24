@@ -49,7 +49,6 @@ interface FilterDrawerProps {
     configName: string,
     cardName: string,
     selected: any,
-    action: any,
   ) => void;
   onTimeChange: (
     testName: string,
@@ -388,13 +387,12 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                                                     Number(option.value),
                                                   ),
                                               )}
-                                              onChange={(selected, action) =>
+                                              onChange={(selected) =>
                                                 onChannelSelect(
                                                   selection.testName,
                                                   config.configName,
                                                   cardSel.cardName,
                                                   selected as MultiValue<SelectOption>,
-                                                  action,
                                                 )
                                               }
                                               placeholder="Select channels..."

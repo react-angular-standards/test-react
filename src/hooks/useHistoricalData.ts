@@ -18,6 +18,9 @@ const useHistoricalData = (apiBase: string) => {
   const [cards, setCards] = useState<Record<string, string[]>>({});
   const [channels, setChannels] = useState<Record<string, number[]>>({});
   const [allChannels, setAllChannels] = useState<number[]>([]);
+  const [configTimes, setConfigTimes] = useState<
+    Record<string, { startTime: any; endTime: any }>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,12 +71,16 @@ const useHistoricalData = (apiBase: string) => {
   ) => {
     const key = `${testName}_${configName}`;
 
-    // If cards already exist and not forcing refresh, return existing data
+    // If cards already exist and not forcing refresh, return cached data
     if (cards[key] && !forceRefresh) {
-      return {
-        cards: cards[key],
+      const cachedTimes = configTimes[key] || {
         startTime: null,
         endTime: null,
+      };
+      return {
+        cards: cards[key],
+        startTime: cachedTimes.startTime,
+        endTime: cachedTimes.endTime,
       };
     }
 
@@ -104,10 +111,15 @@ const useHistoricalData = (apiBase: string) => {
       setChannels((prev) => ({ ...prev, ...channelsMap }));
       setAllChannels(Array.from(allChannelsSet).sort((a, b) => a - b));
 
+      // Cache the time data
+      const startTime = data.testStartTime ? dayjs(data.testStartTime) : null;
+      const endTime = data.testEndTime ? dayjs(data.testEndTime) : null;
+      setConfigTimes((prev) => ({ ...prev, [key]: { startTime, endTime } }));
+
       return {
         cards: cardList,
-        startTime: data.testStartTime ? dayjs(data.testStartTime) : null,
-        endTime: data.testEndTime ? dayjs(data.testEndTime) : null,
+        startTime,
+        endTime,
       };
     } catch (err: any) {
       setError(

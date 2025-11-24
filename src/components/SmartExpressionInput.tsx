@@ -166,6 +166,18 @@ const SmartExpressionInput: React.FC<SmartExpressionInputProps> = ({
         value={inputValue}
         onChange={handleInputChange}
         onBlur={handleBlur}
+        onFocus={() => {
+          // Show channel suggestions immediately on focus
+          if (allChannelOptions.length > 0) {
+            setSuggestions(
+              allChannelOptions.slice(0, 10).map((opt) => ({
+                value: String(opt.value),
+                label: `Ch: ${opt.value}`,
+              })),
+            );
+            setShowSuggestions(true);
+          }
+        }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         size="small"
