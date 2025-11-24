@@ -517,7 +517,8 @@ const HistoricalDataRefactored: React.FC = () => {
       zoomType: "xy",
       title: {
         fontSize: 20,
-        text: dataSource === "filter" ? "Filter Data" : "Custom Query Data",
+        text:
+          dataSource === "filter" ? "Filter Data" : "Custom Calculation Data",
       },
       axisX: {
         title: "Time",
@@ -659,8 +660,10 @@ const HistoricalDataRefactored: React.FC = () => {
                       sx={{ color: "#666", fontSize: "0.8rem" }}
                     >
                       Source:{" "}
-                      {dataSource === "filter" ? "Filter" : "Custom Query"} (
-                      {tableData.length} rows)
+                      {dataSource === "filter"
+                        ? "Filter"
+                        : "Custom Calculation"}{" "}
+                      ({tableData.length} rows)
                     </Typography>
                   )}
                 </Box>
@@ -815,7 +818,7 @@ const HistoricalDataRefactored: React.FC = () => {
                   }}
                 >
                   <Tab label="Filter" value="filter" />
-                  <Tab label="Custom Query" value="customQuery" />
+                  <Tab label="Custom Calculation" value="customQuery" />
                 </Tabs>
 
                 <Box
@@ -843,7 +846,7 @@ const HistoricalDataRefactored: React.FC = () => {
                     />
                   )}
 
-                  {/* Custom Query Tab Content */}
+                  {/* Custom Calculation Tab Content */}
                   {activeTab === "customQuery" && (
                     <CustomQueryDrawerContent
                       loading={loading}
