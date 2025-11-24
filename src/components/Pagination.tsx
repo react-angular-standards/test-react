@@ -32,7 +32,9 @@ const Pagination: React.FC<PaginationProps> = ({
     setLocalPage(currentPage + 1);
   }, [currentPage]);
 
-  const handlePageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePageInputChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const value = event.target.value;
     setLocalPage(value ? Number(value) : "");
   };
@@ -74,17 +76,20 @@ const Pagination: React.FC<PaginationProps> = ({
         options={[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
         getOptionLabel={(option) => option.toString()}
         value={pageSize}
-        onChange={(event, newValue) => {
-          let num = typeof newValue === "string" ? parseInt(newValue, 10) : newValue;
+        onChange={(_, newValue) => {
+          let num =
+            typeof newValue === "string" ? parseInt(newValue, 10) : newValue;
           if (isNaN(num) || num <= 0) num = 10;
           onPageSizeChange(num);
           onPageChange(0);
         }}
         inputValue={localPageSize}
-        onInputChange={(event, newInputValue) => {
+        onInputChange={(_, newInputValue) => {
           setLocalPageSize(newInputValue);
         }}
-        renderInput={(params) => <TextField {...params} size="small" sx={{ width: 100 }} />}
+        renderInput={(params) => (
+          <TextField {...params} size="small" sx={{ width: 100 }} />
+        )}
       />
       <IconButton onClick={handlePreviousPage} disabled={currentPage === 0}>
         <ArrowBackIcon />
