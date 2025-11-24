@@ -43,7 +43,6 @@ app.get("/test-config-details", (req, res) => {
 });
 
 // POST /filter - Returns filtered data based on request
-// Returns data in row-per-channel format: { Timestamp, TestName, ConfigName, Channel, Value }
 app.post("/filter", (req, res) => {
   const {
     TestName,
@@ -55,6 +54,10 @@ app.post("/filter", (req, res) => {
     endTime,
   } = req.body;
 
+  // Generate mock data based on channels
+  const mockData = [];
+  const totalRecords = 100; // Total mock records
+
   // Get all channels from the request
   const allChannels = [];
   if (details && details.length > 0) {
@@ -65,32 +68,29 @@ app.post("/filter", (req, res) => {
     });
   }
 
-  // Generate mock data - one row per channel per timestamp
-  // Total records = timestamps * channels
-  const numTimestamps = 50;
-  const totalRecords = numTimestamps * Math.max(allChannels.length, 1);
+  // Generate data rows
+  const startIndex = offset;
+  const endIndex = Math.min(offset + limit, totalRecords);
 
-  const allData = [];
-  for (let t = 0; t < numTimestamps; t++) {
-    const timestamp = new Date(
-      Date.now() - (numTimestamps - t) * 60000,
-    ).toISOString();
+  for (let i = startIndex; i < endIndex; i++) {
+    const row = {
+      timestamp: new Date(
+        Date.now() - (totalRecords - i) * 60000,
+      ).toISOString(),
+      testName: TestName,
+      configName: ConfigName,
+    };
+
+    // Add channel data
     allChannels.forEach((channel) => {
-      allData.push({
-        Timestamp: timestamp,
-        TestName: TestName,
-        ConfigName: ConfigName,
-        Channel: channel,
-        Value: (Math.random() * 100).toFixed(2),
-      });
+      row[`channel_${channel}`] = (Math.random() * 100).toFixed(2);
     });
+
+    mockData.push(row);
   }
 
-  // Apply pagination
-  const paginatedData = allData.slice(offset, offset + limit);
-
   res.json({
-    data: paginatedData,
+    data: mockData,
     totalCount: totalRecords,
   });
 });
