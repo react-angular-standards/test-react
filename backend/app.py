@@ -2,6 +2,7 @@ import base64
 import getpass
 import hashlib
 import logging
+import os
 import re
 import secrets
 import sys
@@ -637,6 +638,10 @@ async def authorize(request: Request):
     logger.info(f"   Referer: {request.headers.get('referer', 'None')}")
     logger.info(f"   Origin: {request.headers.get('origin', 'None')}")
     logger.info(f"   Detected frontend URL: {frontend_url}")
+
+    # Extract hostname for TSL check
+    parsed = urlparse(frontend_url)
+    hostname = parsed.hostname or parsed.netloc.split(":")[0]
 
     # ✅ PRIORITY: Check for Transparent Screen Lock FIRST for localhost
     # Only check TSL for actual localhost, NOT for laptop hostnames
