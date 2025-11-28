@@ -484,16 +484,54 @@ def listen_event_logs():
                     if event.SourceName == target_source:
                         description = win32evtlogutil.SafeFormatMessage(event, log_type)
 
+                        # Enhanced user info extraction from TSL event
                         user_email = None
-                        if description and "User Name:" in description:
+                        user_name = None
+
+                        # Method 1: Extract from Description field
+                        if description:
+                            # Try multiple patterns for user email/name
+                            patterns = [
+                                r"User Name:\s*(\S+@\S+)",  # Email with domain
+                                r"User Name:\s*(\S+)",  # Username without domain
+                                r"User:\s*(\S+@\S+)",  # Alternate format
+                                r"User:\s*(\S+)",
+                                r"Email:\s*(\S+@\S+)",
+                            ]
+
+                            for pattern in patterns:
+                                match = re.search(pattern, description, re.IGNORECASE)
+                                if match:
+                                    user_email = match.group(1).strip()
+                                    break
+
+                        # Method 2: Check StringInserts (raw event data)
+                        if not user_email and event.StringInserts:
+                            for insert in event.StringInserts:
+                                if insert and "@" in insert:
+                                    user_email = insert.strip()
+                                    break
+                                elif insert and len(insert) > 2 and not user_name:
+                                    # Potential username without @
+                                    user_name = insert.strip()
+
+                        # Method 3: Try to resolve SID to username (Windows only)
+                        if not user_email and not user_name and event.Sid:
                             try:
-                                user_email = (
-                                    description.split("User Name:")[1]
-                                    .split()[0]
-                                    .strip()
+                                import win32security
+
+                                sid_string = str(event.Sid)
+                                # Try to lookup account from SID
+                                account, domain, _ = win32security.LookupAccountSid(
+                                    None, event.Sid
                                 )
-                            except:
-                                pass
+                                if account and account != "SYSTEM":
+                                    user_name = account
+                                    logger.info(
+                                        f"Resolved SID to username: {account} (Domain: {domain})"
+                                    )
+                            except Exception as sid_error:
+                                logger.debug(f"Could not resolve SID: {sid_error}")
 
                         event_details = {
                             "EventID": event.EventID,
@@ -503,6 +541,7 @@ def listen_event_logs():
                             "EventType": event.EventType,
                             "User": str(event.Sid) if event.Sid else None,
                             "user_email": user_email,
+                            "user_name": user_name,
                             "RawEventData": event.StringInserts,
                         }
 
@@ -609,41 +648,44 @@ async def authorize(request: Request):
         logger.info("🔒 Standard localhost detected - Checking Transparent Screen Lock")
 
         if transparent_lock_current_user:
-            # Try to get user email from TSL event
+            # Enhanced: Get user info from TSL event (now with better extraction)
             user_email = transparent_lock_current_user.get("user_email")
-            if not user_email:
-                description = transparent_lock_current_user.get("Description", "")
-                if "User Name:" in description:
-                    try:
-                        user_email = (
-                            description.split("User Name:")[1].split()[0].strip()
-                        )
-                    except:
-                        user_email = None
+            user_name = transparent_lock_current_user.get("user_name")
 
-            # If no email from TSL, try to get Windows username
-            if not user_email:
+            # If we have email, use it
+            if user_email:
+                logger.info(f"✅ TSL provided email: {user_email}")
+            # If we have username but no email, construct email
+            elif user_name:
+                user_email = f"{user_name}@local"
+                logger.info(f"✅ TSL provided username: {user_name} → {user_email}")
+            # Fallback: try to get Windows username
+            else:
                 try:
                     windows_user = getpass.getuser()
                     user_email = f"{windows_user}@local"
-                    logger.info(f"Using Windows username: {windows_user}")
+                    user_name = windows_user
+                    logger.info(
+                        f"⚠️ TSL did not provide user info, using Windows username: {windows_user}"
+                    )
                 except:
                     user_email = "local-user@local"
-                    logger.warning("Could not detect Windows username, using default")
+                    user_name = "local-user"
+                    logger.warning(
+                        "❌ Could not detect any user information, using default"
+                    )
 
-            user_name = user_email.split("@")[0] if "@" in user_email else user_email
+            # Extract display name from email
+            display_user_name = (
+                user_email.split("@")[0] if "@" in user_email else user_email
+            )
 
-            # Try to get user ID from TSL, fallback to Windows username
-            user_id = transparent_lock_current_user.get("User")
-            if not user_id:
-                try:
-                    user_id = getpass.getuser()
-                except:
-                    user_id = "local-user"
+            # Use email as user_id for consistency across logins
+            user_id = user_email
 
             # Parse name into first and last
-            name_parts = user_name.split(".")
-            given_name = name_parts[0] if len(name_parts) > 0 else user_name
+            name_parts = display_user_name.split(".")
+            given_name = name_parts[0] if len(name_parts) > 0 else display_user_name
             family_name = name_parts[1] if len(name_parts) > 1 else ""
 
             # Capitalize names properly
