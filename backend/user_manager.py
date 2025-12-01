@@ -163,6 +163,44 @@ class UserManager:
             logger.error(f"Failed to get user {user_id}: {e}")
             return None
 
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Get user by email from Neo4j
+
+        Args:
+            email: User email
+
+        Returns:
+            User data dictionary or None if not found
+        """
+        try:
+            with self.graph_db.get_session() as session:
+                query = """
+                MATCH (u:User {email: $email})
+                WHERE u.deleted = false
+                RETURN u.user_id as sub,
+                       u.name as name,
+                       u.email as email,
+                       u.given_name as given_name,
+                       u.family_name as family_name,
+                       u.bemsid as bemsid,
+                       u.role as role,
+                       u.auth_method as auth_method,
+                       u.last_login as last_login
+                """
+
+                result = session.run(query, email=email)
+                record = result.single()
+
+                if not record:
+                    return None
+
+                return dict(record)
+
+        except Exception as e:
+            logger.error(f"Failed to get user by email {email}: {e}")
+            return None
+
     def get_all_users(self) -> List[Dict[str, Any]]:
         """
         Get all users from Neo4j
@@ -290,10 +328,26 @@ class UserManager:
             True if user is admin, False otherwise
         """
         try:
+            logger.info(f"🔍 is_admin check for user_id: {user_id}")
             user = self.get_user(user_id)
-            return user.get("role") == UserRole.ADMIN if user else False
+            logger.info(f"📋 Retrieved user data: {user}")
+
+            if not user:
+                logger.warning(f"❌ User not found in database: {user_id}")
+                return False
+
+            user_role = user.get("role")
+            is_admin_result = user_role == UserRole.ADMIN
+            logger.info(
+                f"👤 User {user_id} role: '{user_role}' (expected: '{UserRole.ADMIN}') -> is_admin: {is_admin_result}"
+            )
+
+            return is_admin_result
         except Exception as e:
-            logger.error(f"Failed to check admin status: {e}")
+            logger.error(f"❌ Failed to check admin status: {e}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
     def delete_user(self, user_id: str) -> bool:

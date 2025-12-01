@@ -418,11 +418,16 @@ def set_auth_cookie(response, token: str, frontend_url: Optional[str] = None):
 
 async def get_current_user(request: Request) -> Dict[str, Any]:
     """Dependency to get current authenticated user"""
+    logger.info(f"🔍 get_current_user called for path: {request.url.path}")
+    logger.info(f"🍪 Available cookies: {list(request.cookies.keys())}")
+
     token = request.cookies.get("auth_session")
 
     if not token:
-        logger.warning("No auth_session cookie found")
+        logger.warning("❌ No auth_session cookie found")
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    logger.info(f"✅ auth_session cookie found (length: {len(token)})")
 
     try:
         payload = jwt.decode(token, AUTH_SECRET)
@@ -430,25 +435,60 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
         user_info = payload.get("userInfo", {})
 
         if not user_info:
-            logger.warning("No user info in session token")
+            logger.warning("❌ No user info in session token")
             raise HTTPException(status_code=401, detail="No user info in session")
 
+        logger.info(
+            f"✅ User authenticated: {user_info.get('name')} (id: {user_info.get('sub')})"
+        )
         return user_info
     except Exception as e:
-        logger.error(f"Invalid session token: {e}")
+        logger.error(f"❌ Invalid session token: {type(e).__name__}: {e}")
+        import traceback
+
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=401, detail="Invalid session")
 
 
 async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Dependency to require admin role"""
+    logger.info(f"🔐 require_admin called for user: {current_user}")
+
     user_id = current_user.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid user")
+    user_email = current_user.get("email")
 
     user_mgr = get_user_manager()
-    if not user_mgr.is_admin(user_id):
+
+    # Try to lookup user by user_id first, then by email
+    db_user = None
+    lookup_method = None
+
+    if user_id:
+        db_user = user_mgr.get_user(user_id)
+        lookup_method = f"user_id: {user_id}"
+
+    if not db_user and user_email:
+        logger.info(f"⚠️ User not found by ID, trying email: {user_email}")
+        db_user = user_mgr.get_user_by_email(user_email)
+        lookup_method = f"email: {user_email}"
+
+    if not db_user:
+        logger.error(
+            f"❌ User not found in database. sub={user_id}, email={user_email}"
+        )
+        raise HTTPException(status_code=401, detail="User not found in database")
+
+    # Check admin status
+    user_role = db_user.get("role")
+    is_admin = user_role == UserRole.ADMIN
+    logger.info(
+        f"👤 User ({lookup_method}) role: '{user_role}' -> is_admin: {is_admin}"
+    )
+
+    if not is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    logger.info(f"✅ Admin access granted for user ({lookup_method})")
     return current_user
 
 
@@ -1020,6 +1060,66 @@ async def auth_signout(request: Request):
 # ============================================================================
 # USER MANAGEMENT ROUTES (Admin Only)
 # ============================================================================
+
+
+@app.get("/api/debug/session")
+async def debug_session(request: Request):
+    """Debug endpoint to check session status (no auth required)"""
+    token = request.cookies.get("auth_session")
+
+    debug_info = {
+        "has_cookie": bool(token),
+        "cookies_received": list(request.cookies.keys()),
+        "client_host": request.client.host if request.client else None,
+        "request_host": request.headers.get("host"),
+        "origin": request.headers.get("origin"),
+        "referer": request.headers.get("referer"),
+    }
+
+    if not token:
+        debug_info["error"] = "No auth_session cookie found"
+        return JSONResponse(debug_info)
+
+    try:
+        payload = jwt.decode(token, AUTH_SECRET)
+        payload.validate()
+        user_info = payload.get("userInfo", {})
+
+        debug_info["token_valid"] = True
+        debug_info["user_id"] = user_info.get("sub")
+        debug_info["user_name"] = user_info.get("name")
+        debug_info["user_email"] = user_info.get("email")
+
+        # Check if user exists in DB
+        user_mgr = get_user_manager()
+
+        # Try by user_id first
+        db_user = (
+            user_mgr.get_user(user_info.get("sub")) if user_info.get("sub") else None
+        )
+        lookup_method = "user_id"
+
+        # If not found, try by email
+        if not db_user and user_info.get("email"):
+            db_user = user_mgr.get_user_by_email(user_info.get("email"))
+            lookup_method = "email"
+
+        if db_user:
+            debug_info["user_in_db"] = True
+            debug_info["lookup_method"] = lookup_method
+            debug_info["db_role"] = db_user.get("role")
+            debug_info["is_admin"] = db_user.get("role") == UserRole.ADMIN
+        else:
+            debug_info["user_in_db"] = False
+            debug_info["error"] = (
+                "User not found in database (tried both user_id and email)"
+            )
+
+    except Exception as e:
+        debug_info["token_valid"] = False
+        debug_info["error"] = str(e)
+
+    return JSONResponse(debug_info)
 
 
 @app.get("/api/users")
