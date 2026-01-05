@@ -1,10 +1,9 @@
 import React from "react";
 import { Header, Avatar, StyledOcticon } from "@primer/react";
-import { PersonIcon, ShieldLockIcon } from "@primer/octicons-react";
+import { ShieldLockIcon } from "@primer/octicons-react";
+import { Link, useLocation } from "react-router-dom";
 
 interface AppHeaderProps {
-  currentPage: "historical" | "users";
-  onNavigate: (page: "historical" | "users") => void;
   user: {
     id: string;
     name: string;
@@ -14,12 +13,8 @@ interface AppHeaderProps {
   isAdmin: boolean;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({
-  currentPage,
-  onNavigate,
-  user,
-  isAdmin,
-}) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ user, isAdmin }) => {
+  const location = useLocation();
   return (
     <Header
       sx={{
@@ -30,7 +25,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     >
       <Header.Item>
         <Header.Link
-          href="#"
+          as={Link}
+          to="/"
           sx={{
             fontSize: 3,
             fontWeight: "bold",
@@ -46,16 +42,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
       <Header.Item>
         <Header.Link
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            onNavigate("historical");
-          }}
+          as={Link}
+          to="/"
           sx={{
             color: "white",
-            fontWeight: currentPage === "historical" ? "bold" : "normal",
-            borderBottom:
-              currentPage === "historical" ? "2px solid white" : "none",
+            fontWeight: location.pathname === "/" ? "bold" : "normal",
+            borderBottom: location.pathname === "/" ? "2px solid white" : "none",
             paddingBottom: "4px",
             "&:hover": { color: "white" },
           }}
@@ -67,16 +59,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       {isAdmin && (
         <Header.Item>
           <Header.Link
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              onNavigate("users");
-            }}
+            as={Link}
+            to="/users"
             sx={{
               color: "white",
-              fontWeight: currentPage === "users" ? "bold" : "normal",
+              fontWeight: location.pathname === "/users" ? "bold" : "normal",
               borderBottom:
-                currentPage === "users" ? "2px solid white" : "none",
+                location.pathname === "/users" ? "2px solid white" : "none",
               paddingBottom: "4px",
               "&:hover": { color: "white" },
             }}

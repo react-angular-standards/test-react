@@ -1,21 +1,27 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import Forbidden403 from "../pages/Forbidden403";
 
 interface ProtectedRouteProps {
   isAdmin: boolean;
   userRole?: string;
-  onGoBack: () => void;
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   isAdmin,
   userRole,
-  onGoBack,
   children,
 }) => {
+  const navigate = useNavigate();
+
   if (!isAdmin) {
-    return <Forbidden403 userRole={userRole} onGoBack={onGoBack} />;
+    return (
+      <Forbidden403
+        userRole={userRole}
+        onGoBack={() => navigate("/")}
+      />
+    );
   }
 
   return <>{children}</>;
