@@ -1169,7 +1169,14 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
         // Extract numeric ID from "channelId - channelName" format
         const numericId = channel.split(" - ")[0];
         const channelName = `${channel}`;
-        const axisIndex = channelIdToPlotInfoRef.current[numericId].yAxisIndex;
+        const channelInfo = channelIdToPlotInfoRef.current[numericId];
+
+        if (!channelInfo) {
+          console.warn("Channel info not found for:", numericId, channel);
+          return;
+        }
+
+        const axisIndex = channelInfo.yAxisIndex;
         if (!activePlotChannelsRef.current[numericId]) {
           activePlotChannelsRef.current[numericId] = {
             type: "line",

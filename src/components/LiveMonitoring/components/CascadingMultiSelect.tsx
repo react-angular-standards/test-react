@@ -116,6 +116,12 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
 
   const updateChannelsToPlot = useCallback(
     (availableOpt: Option) => {
+      // Skip if no channelName (e.g., Select All options)
+      if (!availableOpt.channelName) {
+        console.warn("Skipping option without channelName:", availableOpt);
+        return;
+      }
+
       // Extract numeric ID from "channelId - channelName" format for WebSocket
       const numericId = availableOpt.value.split(" - ")[0];
 
@@ -158,9 +164,7 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     });
     setIsChannelListChanged(changesDetected);
     setSelectedOptions(
-      newSelectedChannels.sort((c1, c2) =>
-        c1.label.localeCompare(c2.channelName),
-      ),
+      newSelectedChannels.sort((c1, c2) => c1.label.localeCompare(c2.label)),
     );
   };
 
