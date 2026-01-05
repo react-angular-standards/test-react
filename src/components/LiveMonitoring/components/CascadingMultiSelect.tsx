@@ -88,7 +88,12 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
         console.log("channelList", channelList);
 
         channelList.forEach((channelId) => {
-          if (!optionListToMatch.some((option) => option.value === channelId)) {
+          // Extract numeric ID from options to match against activePlotChannelsRef keys
+          if (
+            !optionListToMatch.some(
+              (option) => option.value.split(" - ")[0] === channelId,
+            )
+          ) {
             delete activePlotChannelsRef.current[channelId];
             delete channelIdToPlotInfoRef.current[channelId];
             changesDetected = true;
@@ -111,10 +116,13 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
 
   const updateChannelsToPlot = useCallback(
     (availableOpt: Option) => {
-      channelIdToPlotInfoRef.current[availableOpt.value] = {
+      // Extract numeric ID from "channelId - channelName" format for WebSocket
+      const numericId = availableOpt.value.split(" - ")[0];
+
+      channelIdToPlotInfoRef.current[numericId] = {
         yAxisIndex: 0,
         value: availableOpt.value,
-        label: availableOpt.channelName,
+        label: availableOpt.label,
         channelName: availableOpt.channelName,
       };
     },
@@ -163,7 +171,11 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     cleanUpSelectedChannels(selectedOptions);
 
     if (onChannelSelect) {
-      onChannelSelect(Object.keys(channelIdToPlotInfoRef.current));
+      // Pass the full "id - name" format for display purposes
+      const channelValues = Object.values(channelIdToPlotInfoRef.current).map(
+        (opt) => opt.value,
+      );
+      onChannelSelect(channelValues);
     }
     setIsStreaming(true);
     setIsChannelListChanged(false);
