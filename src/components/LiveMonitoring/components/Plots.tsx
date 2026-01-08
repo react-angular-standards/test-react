@@ -280,7 +280,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     useEffect(() => {
       Object.keys(chartRefs.current).forEach((chartId) => {
         const chart = chartRefs.current[chartId] as unknown as ChartInstance;
-        if (chart) {
+        if (chart?.options) {
           chart.options.rangeChanged = (e) => {
             const isZoomed =
               e.axisX[0].viewportMinimum != null ||
