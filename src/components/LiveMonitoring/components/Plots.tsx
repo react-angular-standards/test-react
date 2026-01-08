@@ -331,6 +331,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const stripLinesArray = [];
 
           // Collect data for each channel and create stripLines
+          let stripLineIndex = 0;
           for (const channelId of channels) {
             const numericId = channelId.includes(" - ")
               ? channelId.split(" - ")[0]
@@ -340,34 +341,39 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             if (data !== undefined) {
               data.showInLegend = enableChartLegend;
               dataArray.push(data);
+            }
 
-              // Get the latest timestamp for this channel to position stripLine
-              const channelInfo = channelIdToPlotInfoRef.current[numericId];
-              console.log("Channel Info:", numericId, channelInfo);
+            // Create stripLine for each channel regardless of data
+            const channelInfo = channelIdToPlotInfoRef.current[numericId];
+            console.log("Channel Info:", numericId, channelInfo);
+            console.log("Data points:", data?.dataPoints?.length);
 
-              if (
-                channelInfo &&
-                data.dataPoints &&
-                data.dataPoints.length > 0
-              ) {
-                const latestPoint = data.dataPoints[data.dataPoints.length - 1];
-
-                const stripLine = {
-                  value: latestPoint.x, // Position at latest data point
-                  label: channelInfo.unit || "Value",
-                  labelFontColor: channelInfo.color || "#369EAD",
-                  labelFontSize: 14,
-                  labelAlign: "center",
-                  labelPlacement: "outside",
-                  color: channelInfo.color || "#369EAD",
-                  thickness: 3,
-                  lineDashType: "solid",
-                  showOnTop: true,
-                };
-
-                console.log("Adding stripLine:", stripLine);
-                stripLinesArray.push(stripLine);
+            if (channelInfo) {
+              // Use current time or latest data point
+              let xPosition;
+              if (data?.dataPoints && data.dataPoints.length > 0) {
+                xPosition = data.dataPoints[data.dataPoints.length - 1].x;
+              } else {
+                // Use current time offset by index to space them out
+                xPosition = new Date(Date.now() + stripLineIndex * 10000);
               }
+
+              const stripLine = {
+                value: xPosition,
+                label: channelInfo.unit || "Value",
+                labelFontColor: channelInfo.color || "#369EAD",
+                labelFontSize: 14,
+                labelAlign: "center",
+                labelPlacement: "outside",
+                color: channelInfo.color || "#369EAD",
+                thickness: 3,
+                lineDashType: "solid",
+                showOnTop: true,
+              };
+
+              console.log("Adding stripLine:", stripLine);
+              stripLinesArray.push(stripLine);
+              stripLineIndex++;
             }
           }
 
