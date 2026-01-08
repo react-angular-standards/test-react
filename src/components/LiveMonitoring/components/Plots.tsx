@@ -331,8 +331,10 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const stripLinesArray = [];
 
           // Collect data for each channel and create stripLines
-          let stripLineIndex = 0;
-          for (const channelId of channels) {
+          const currentTime = new Date();
+
+          for (let i = 0; i < channels.length; i++) {
+            const channelId = channels[i];
             const numericId = channelId.includes(" - ")
               ? channelId.split(" - ")[0]
               : channelId;
@@ -343,18 +345,16 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               dataArray.push(data);
             }
 
-            // Create stripLine only when channel has data
+            // Create stripLine for every channel with channelInfo
             const channelInfo = channelIdToPlotInfoRef.current[numericId];
             console.log("Channel Info:", numericId, channelInfo);
-            console.log("Data points:", data?.dataPoints?.length);
 
-            if (channelInfo && data?.dataPoints && data.dataPoints.length > 0) {
-              // Get a timestamp from the middle or end of data for better visibility
-              const dataPointIndex = Math.floor(data.dataPoints.length * 0.9); // 90% through the data
-              const xPosition = data.dataPoints[dataPointIndex].x;
+            if (channelInfo) {
+              // Position stripLines at fixed time intervals (every 5 seconds apart)
+              const stripLineTime = new Date(currentTime.getTime() + i * 5000);
 
               const stripLine = {
-                value: xPosition,
+                value: stripLineTime,
                 label: channelInfo.unit || "Value",
                 labelFontColor: channelInfo.color || "#369EAD",
                 labelFontSize: 14,
@@ -368,7 +368,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
               console.log("Adding stripLine:", stripLine);
               stripLinesArray.push(stripLine);
-              stripLineIndex++;
             }
           }
 
