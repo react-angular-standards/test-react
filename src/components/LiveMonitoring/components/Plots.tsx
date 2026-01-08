@@ -343,6 +343,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
               // Get the latest timestamp for this channel to position stripLine
               const channelInfo = channelIdToPlotInfoRef.current[numericId];
+              console.log("Channel Info:", numericId, channelInfo);
+
               if (
                 channelInfo &&
                 data.dataPoints &&
@@ -350,21 +352,30 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               ) {
                 const latestPoint = data.dataPoints[data.dataPoints.length - 1];
 
-                // Create stripLine for this channel with its unit
-                stripLinesArray.push({
+                const stripLine = {
                   value: latestPoint.x, // Position at latest data point
                   label: channelInfo.unit || "Value",
                   labelFontColor: channelInfo.color || "#369EAD",
-                  labelFontSize: 12,
+                  labelFontSize: 14,
                   labelAlign: "center",
                   labelPlacement: "outside",
                   color: channelInfo.color || "#369EAD",
-                  thickness: 2,
-                  lineDashType: "dash",
-                });
+                  thickness: 3,
+                  lineDashType: "solid",
+                  showOnTop: true,
+                };
+
+                console.log("Adding stripLine:", stripLine);
+                stripLinesArray.push(stripLine);
               }
             }
           }
+
+          console.log(
+            "Total stripLines:",
+            stripLinesArray.length,
+            stripLinesArray,
+          );
 
           // Single Y-axis for all channels
           const axisYArray = [
