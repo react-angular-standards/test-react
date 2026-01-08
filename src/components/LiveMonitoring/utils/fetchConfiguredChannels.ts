@@ -135,47 +135,53 @@ export const fetchConfiguredChannels = async (
                   upateContinuousChannels &&
                   module.node_type !== "Voltage_Output"
                 ) {
-                  continuousDataChannel.push({
-                    value: channelId + " - " + channel.channel_name,
-                    label: channelId + " - " + channel.channel_name,
-                    chassisId: chassisName,
-                    cardId: card.Task_id,
-                    isSelectAll: false,
-                    channelName: channel.channel_name ?? "Unknown",
-                    unit: channel.unit || "Value",
-                    color: getRandomColorScheme(),
-                  });
+                  try {
+                    continuousDataChannel.push({
+                      value: channelId + " - " + channel.channel_name,
+                      label: channelId + " - " + channel.channel_name,
+                      chassisId: chassisName,
+                      cardId: card.Task_id,
+                      isSelectAll: false,
+                      channelName: channel.channel_name ?? "Unknown",
+                      unit: channel.unit || "Value",
+                      color: getRandomColorScheme(),
+                    });
+                  } catch (err) {
+                    console.error("Error pushing channel:", channelId, err);
+                  }
                 }
               });
             } else {
               console.log(`No channels found in Card ${cardIndex}`);
             }
           });
-          if (upateDiscreteInChannels) {
-            upateDiscreteInChannels(
-              discreteInputChannel.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
-            );
-          }
-          if (upateDiscreteOutChannels) {
-            upateDiscreteOutChannels(
-              discreteOutputChannel.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
-            );
-          }
-          if (upateRelayChannels) {
-            upateRelayChannels(
-              relayOutputChannels.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
-            );
-          }
-          if (upateContinuousChannels) {
-            upateContinuousChannels(continuousDataChannel);
-          }
-          if (upadteAnalogOutput) {
-            upadteAnalogOutput(analogOutputDataChannel);
-          }
         } else {
           console.log(`No cards found in Module ${moduleIndex}`);
         }
       });
+
+      // Update all channels after processing all modules
+      if (upateDiscreteInChannels) {
+        upateDiscreteInChannels(
+          discreteInputChannel.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
+        );
+      }
+      if (upateDiscreteOutChannels) {
+        upateDiscreteOutChannels(
+          discreteOutputChannel.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
+        );
+      }
+      if (upateRelayChannels) {
+        upateRelayChannels(
+          relayOutputChannels.sort((c1, c2) => c1.uniqueId - c2.uniqueId),
+        );
+      }
+      if (upateContinuousChannels) {
+        upateContinuousChannels(continuousDataChannel);
+      }
+      if (upadteAnalogOutput) {
+        upadteAnalogOutput(analogOutputDataChannel);
+      }
     } else {
       console.log(
         "No valid InputModule data found. Checking for alternative structures...",
