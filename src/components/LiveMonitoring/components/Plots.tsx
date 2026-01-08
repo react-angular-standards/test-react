@@ -331,7 +331,20 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const stripLinesArray = [];
 
           // Collect data for each channel and create stripLines
-          const currentTime = new Date();
+          // Find the latest timestamp from all data to position stripLines
+          let latestTime = new Date();
+          for (const channelId of channels) {
+            const numericId = channelId.includes(" - ")
+              ? channelId.split(" - ")[0]
+              : channelId;
+            const data = activePlotChannelsRef.current[numericId];
+            if (data?.dataPoints && data.dataPoints.length > 0) {
+              const lastPoint = data.dataPoints[data.dataPoints.length - 1];
+              if (lastPoint.x > latestTime) {
+                latestTime = new Date(lastPoint.x);
+              }
+            }
+          }
 
           for (let i = 0; i < channels.length; i++) {
             const channelId = channels[i];
@@ -350,8 +363,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             console.log("Channel Info:", numericId, channelInfo);
 
             if (channelInfo) {
-              // Position stripLines at fixed time intervals (every 5 seconds apart)
-              const stripLineTime = new Date(currentTime.getTime() + i * 5000);
+              // Position stripLines near the latest data, spaced 2 seconds apart
+              const stripLineTime = new Date(latestTime.getTime() + i * 2000);
 
               const stripLine = {
                 value: stripLineTime,
