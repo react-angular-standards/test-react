@@ -343,20 +343,15 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               dataArray.push(data);
             }
 
-            // Create stripLine for each channel regardless of data
+            // Create stripLine only when channel has data
             const channelInfo = channelIdToPlotInfoRef.current[numericId];
             console.log("Channel Info:", numericId, channelInfo);
             console.log("Data points:", data?.dataPoints?.length);
 
-            if (channelInfo) {
-              // Use current time or latest data point
-              let xPosition;
-              if (data?.dataPoints && data.dataPoints.length > 0) {
-                xPosition = data.dataPoints[data.dataPoints.length - 1].x;
-              } else {
-                // Use current time offset by index to space them out
-                xPosition = new Date(Date.now() + stripLineIndex * 10000);
-              }
+            if (channelInfo && data?.dataPoints && data.dataPoints.length > 0) {
+              // Get a timestamp from the middle or end of data for better visibility
+              const dataPointIndex = Math.floor(data.dataPoints.length * 0.9); // 90% through the data
+              const xPosition = data.dataPoints[dataPointIndex].x;
 
               const stripLine = {
                 value: xPosition,
