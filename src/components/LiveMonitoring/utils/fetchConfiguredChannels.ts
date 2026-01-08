@@ -143,7 +143,7 @@ export const fetchConfiguredChannels = async (
                       cardId: card.Task_id,
                       isSelectAll: false,
                       channelName: channel.channel_name ?? "Unknown",
-                      unit: channel.unit || "Value",
+                      unit: channel.unit || "cm", // Mock unit as "cm" for all channels
                       color: getRandomColorScheme(),
                     });
                   } catch (err) {
