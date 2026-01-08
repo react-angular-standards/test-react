@@ -328,76 +328,55 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             channelGroups?.find((group) => group.id === chart.id)?.channels ??
             availableChannels;
           const dataArray = [];
+          const stripLinesArray = [];
 
-          // Map to store Y-axis info: originalAxisIndex -> {unit, color, channelId, newIndex}
-          const axisYInfoMap = new Map<
-            number,
-            { unit: string; color: string; channelId: string; newIndex: number }
-          >();
-          // Array to maintain the order of Y-axes based on channel order
-          const orderedAxisIndices: number[] = [];
-
-          // First pass: collect all unique axes in the order channels appear
-          for (const channelId of channels) {
-            const numericId = channelId.includes(" - ")
-              ? channelId.split(" - ")[0]
-              : channelId;
-            const channelInfo = channelIdToPlotInfoRef.current[numericId];
-
-            if (channelInfo?.yAxisIndex !== undefined) {
-              // Track the order and assign new sequential indices
-              if (!axisYInfoMap.has(channelInfo.yAxisIndex)) {
-                const newIndex = orderedAxisIndices.length; // 0, 1, 2, 3...
-                orderedAxisIndices.push(channelInfo.yAxisIndex);
-                axisYInfoMap.set(channelInfo.yAxisIndex, {
-                  unit: channelInfo.unit || "Value",
-                  color: channelInfo.color || "#369EAD",
-                  channelId: numericId,
-                  newIndex: newIndex,
-                });
-              }
-            }
-          }
-
-          // Second pass: create data array with remapped axis indices
+          // Collect data for each channel and create stripLines
           for (const channelId of channels) {
             const numericId = channelId.includes(" - ")
               ? channelId.split(" - ")[0]
               : channelId;
             const data = activePlotChannelsRef.current[numericId];
+
             if (data !== undefined) {
+              data.showInLegend = enableChartLegend;
+              dataArray.push(data);
+
+              // Get the latest timestamp for this channel to position stripLine
               const channelInfo = channelIdToPlotInfoRef.current[numericId];
+              if (
+                channelInfo &&
+                data.dataPoints &&
+                data.dataPoints.length > 0
+              ) {
+                const latestPoint = data.dataPoints[data.dataPoints.length - 1];
 
-              // Remap the axisYIndex to the new sequential index for this group
-              const originalAxisIndex = channelInfo?.yAxisIndex;
-              const remappedAxisInfo =
-                originalAxisIndex !== undefined
-                  ? axisYInfoMap.get(originalAxisIndex)
-                  : undefined;
-
-              const dataWithRemappedAxis = {
-                ...data,
-                showInLegend: enableChartLegend,
-                axisYIndex: remappedAxisInfo?.newIndex ?? 0,
-              };
-
-              dataArray.push(dataWithRemappedAxis);
+                // Create stripLine for this channel with its unit
+                stripLinesArray.push({
+                  value: latestPoint.x, // Position at latest data point
+                  label: channelInfo.unit || "Value",
+                  labelFontColor: channelInfo.color || "#369EAD",
+                  labelFontSize: 12,
+                  labelAlign: "center",
+                  labelPlacement: "outside",
+                  color: channelInfo.color || "#369EAD",
+                  thickness: 2,
+                  lineDashType: "dash",
+                });
+              }
             }
           }
 
-          // Create Y-axes in the order channels appear in the group
-          const axisYArray = orderedAxisIndices.map((axisIndex, position) => {
-            const axisInfo = axisYInfoMap.get(axisIndex);
-            return {
-              title: axisInfo?.unit || `Axis ${axisIndex}`,
+          // Single Y-axis for all channels
+          const axisYArray = [
+            {
+              title: "Value",
               titleFontSize: 14,
-              lineColor: axisInfo?.color || "#369EAD",
-              tickColor: axisInfo?.color || "#369EAD",
-              labelFontColor: axisInfo?.color || "#369EAD",
-              titleFontColor: axisInfo?.color || "#369EAD",
-              ...(position > 0 && { opposite: true }), // First axis on left, others on right
-            };
-          });
+              lineColor: "#369EAD",
+              tickColor: "#369EAD",
+              labelFontColor: "#369EAD",
+              gridThickness: 1,
+            },
+          ];
 
           // If no axes defined, use default single axis
           const finalAxisY =
@@ -416,6 +395,10 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             ...(chart.options && {
               options: {
                 ...chart.options,
+                axisX: {
+                  ...chart.options.axisX,
+                  stripLines: stripLinesArray,
+                },
                 legend: {
                   cursor: "pointer",
                   fontSize: 16,
