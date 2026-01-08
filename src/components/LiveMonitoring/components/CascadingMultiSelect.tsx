@@ -125,11 +125,16 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
       // Extract numeric ID from "channelId - channelName" format for WebSocket
       const numericId = availableOpt.value.split(" - ")[0];
 
+      // Check if this channel already has a yAxisIndex and color assigned
+      const existingInfo = channelIdToPlotInfoRef.current[numericId];
+
       channelIdToPlotInfoRef.current[numericId] = {
-        yAxisIndex: 0,
+        yAxisIndex: existingInfo?.yAxisIndex ?? parseInt(numericId),
         value: availableOpt.value,
         label: availableOpt.label,
         channelName: availableOpt.channelName,
+        unit: availableOpt.unit,
+        color: existingInfo?.color ?? availableOpt.color,
       };
     },
     [channelIdToPlotInfoRef],

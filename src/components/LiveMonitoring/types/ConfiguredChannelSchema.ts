@@ -1,8 +1,8 @@
 /** @format */
 
 // Define interface types
-export type DiscreteChannelState = 'HIGH' | 'LOW';
-export type SupportedChannelTypes = 'Discrete' | 'Continuous';
+export type DiscreteChannelState = "HIGH" | "LOW";
+export type SupportedChannelTypes = "Discrete" | "Continuous";
 
 export type UpdateChannelsFunc = (channels: Channel[]) => void;
 export type UpdateChannelSelectionListFunc = (groups: Option[]) => void;
@@ -28,6 +28,7 @@ export interface Channel {
   Waveform_Frequency?: string;
   Waveform_Amplitude?: string;
   Waveform_Time_Limit?: string;
+  unit?: string;
 }
 
 export interface ChannelGroup {
@@ -68,4 +69,5 @@ export interface Option {
   channelName: string;
   yAxisIndex?: number;
   unit?: string;
+  color?: string;
 }

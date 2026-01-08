@@ -29,14 +29,31 @@ export interface PlotOptions {
       viewportMinimum?: number | null;
       viewportMaximum?: number | null;
     };
-    axisY?: {
-      title?: string;
-      titleFontSize?: number;
-      labelFontSize?: number;
-      gridThickness?: number;
-      interlacedColor?: string;
-      lineThickness?: number;
-    };
+    axisY?:
+      | {
+          title?: string;
+          titleFontSize?: number;
+          labelFontSize?: number;
+          gridThickness?: number;
+          interlacedColor?: string;
+          lineThickness?: number;
+          lineColor?: string;
+          tickColor?: string;
+          labelFontColor?: string;
+          opposite?: boolean;
+        }
+      | Array<{
+          title?: string;
+          titleFontSize?: number;
+          labelFontSize?: number;
+          gridThickness?: number;
+          interlacedColor?: string;
+          lineThickness?: number;
+          lineColor?: string;
+          tickColor?: string;
+          labelFontColor?: string;
+          opposite?: boolean;
+        }>;
     legend?: {
       cursor?: string;
       fontSize?: number;
@@ -52,6 +69,6 @@ export interface PlotOptions {
 }
 
 export interface ChartInstance {
-  options: PlotOptions['options'];
+  options: PlotOptions["options"];
   render: () => void;
 }
