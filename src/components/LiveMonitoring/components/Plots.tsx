@@ -407,6 +407,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                   },
                 ];
 
+          console.log("Chart options before update:", chart.options?.axisX);
+          console.log("StripLines to apply:", stripLinesArray);
+
           return {
             ...chart,
             ...(chart.options && {
