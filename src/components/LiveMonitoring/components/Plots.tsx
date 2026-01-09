@@ -386,6 +386,16 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             }
           }
 
+          // Primary Y-axis (y1) for "Value"
+          const axisY = {
+            title: "Value",
+            titleFontSize: 14,
+            lineColor: "#369EAD",
+            tickColor: "#369EAD",
+            labelFontColor: "#369EAD",
+            gridThickness: 1,
+          };
+
           return {
             ...chart,
             ...(chart.options && {
@@ -399,6 +409,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     return false;
                   }) as any,
                 },
+                axisY: axisY,
                 axisY2: axisY2Array,
                 data: dataArray,
               },
@@ -416,8 +427,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       handleLegendClick,
       setChartOptions,
       channelIdToPlotInfoRef,
-    ]);
-      setChartOptions,
     ]);
 
     useImperativeHandle(
