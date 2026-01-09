@@ -328,28 +328,27 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             channelGroups?.find((group) => group.id === chart.id)?.channels ??
             availableChannels;
           const dataArray = [];
-          
+
           // Map to track unique units and assign Y-axis indices
           const unitToAxisMap = new Map<string, number>();
           const axisY2Array: any[] = [];
 
-          // Collect data and build Y-axes for each unique unit
+          // First pass: create Y-axes for all channels with channelInfo
           for (let i = 0; i < channels.length; i++) {
             const channelId = channels[i];
             const numericId = channelId.includes(" - ")
               ? channelId.split(" - ")[0]
               : channelId;
-            const data = activePlotChannelsRef.current[numericId];
             const channelInfo = channelIdToPlotInfoRef.current[numericId];
 
-            if (data !== undefined && channelInfo) {
+            if (channelInfo) {
               const unit = channelInfo.unit || "Value";
-              
+
               // Check if we already have an axis for this unit
               if (!unitToAxisMap.has(unit)) {
                 const axisIndex = unitToAxisMap.size;
                 unitToAxisMap.set(unit, axisIndex);
-                
+
                 // Create Y-axis for this unit
                 axisY2Array.push({
                   title: unit,
@@ -360,16 +359,29 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                   gridThickness: axisIndex === 0 ? 1 : 0,
                 });
               }
+            }
+          }
 
-              // Assign data to correct Y-axis
+          // Second pass: add data to dataArray with correct axis assignment
+          for (let i = 0; i < channels.length; i++) {
+            const channelId = channels[i];
+            const numericId = channelId.includes(" - ")
+              ? channelId.split(" - ")[0]
+              : channelId;
+            const data = activePlotChannelsRef.current[numericId];
+            const channelInfo = channelIdToPlotInfoRef.current[numericId];
+
+            if (data !== undefined && channelInfo) {
+              const unit = channelInfo.unit || "Value";
               const assignedAxisIndex = unitToAxisMap.get(unit);
+
               const dataWithAxis = {
                 ...data,
                 showInLegend: enableChartLegend,
                 axisYType: "secondary",
                 axisYIndex: assignedAxisIndex,
               };
-              
+
               dataArray.push(dataWithAxis);
             }
           }
