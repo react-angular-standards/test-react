@@ -328,104 +328,57 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             channelGroups?.find((group) => group.id === chart.id)?.channels ??
             availableChannels;
           const dataArray = [];
-          const stripLinesArray = [];
+          
+          // Map to track unique units and assign Y-axis indices
+          const unitToAxisMap = new Map<string, number>();
+          const axisY2Array: any[] = [];
 
-          // Collect data for each channel and create stripLines
-          // Find the latest timestamp from all data to position stripLines
-          let latestTime = new Date();
-          for (const channelId of channels) {
-            const numericId = channelId.includes(" - ")
-              ? channelId.split(" - ")[0]
-              : channelId;
-            const data = activePlotChannelsRef.current[numericId];
-            if (data?.dataPoints && data.dataPoints.length > 0) {
-              const lastPoint = data.dataPoints[data.dataPoints.length - 1];
-              if (lastPoint.x > latestTime) {
-                latestTime = new Date(lastPoint.x);
-              }
-            }
-          }
-
+          // Collect data and build Y-axes for each unique unit
           for (let i = 0; i < channels.length; i++) {
             const channelId = channels[i];
             const numericId = channelId.includes(" - ")
               ? channelId.split(" - ")[0]
               : channelId;
             const data = activePlotChannelsRef.current[numericId];
-
-            if (data !== undefined) {
-              data.showInLegend = enableChartLegend;
-              dataArray.push(data);
-            }
-
-            // Create stripLine for every channel with channelInfo
             const channelInfo = channelIdToPlotInfoRef.current[numericId];
-            console.log("Channel Info:", numericId, channelInfo);
 
-            if (channelInfo) {
-              // Position stripLines near the latest data, spaced 2 seconds apart
-              const stripLineTime = new Date(latestTime.getTime() + i * 2000);
+            if (data !== undefined && channelInfo) {
+              const unit = channelInfo.unit || "Value";
+              
+              // Check if we already have an axis for this unit
+              if (!unitToAxisMap.has(unit)) {
+                const axisIndex = unitToAxisMap.size;
+                unitToAxisMap.set(unit, axisIndex);
+                
+                // Create Y-axis for this unit
+                axisY2Array.push({
+                  title: unit,
+                  titleFontSize: 14,
+                  lineColor: channelInfo.color || "#369EAD",
+                  tickColor: channelInfo.color || "#369EAD",
+                  labelFontColor: channelInfo.color || "#369EAD",
+                  gridThickness: axisIndex === 0 ? 1 : 0,
+                });
+              }
 
-              const stripLine = {
-                value: stripLineTime,
-                label: channelInfo.unit || "Value",
-                labelFontColor: channelInfo.color || "#369EAD",
-                labelFontSize: 14,
-                labelAlign: "center",
-                labelPlacement: "outside",
-                color: channelInfo.color || "#369EAD",
-                thickness: 3,
-                lineDashType: "solid",
-                showOnTop: true,
+              // Assign data to correct Y-axis
+              const assignedAxisIndex = unitToAxisMap.get(unit);
+              const dataWithAxis = {
+                ...data,
+                showInLegend: enableChartLegend,
+                axisYType: "secondary",
+                axisYIndex: assignedAxisIndex,
               };
-
-              console.log("Adding stripLine:", stripLine);
-              stripLinesArray.push(stripLine);
+              
+              dataArray.push(dataWithAxis);
             }
           }
-
-          console.log(
-            "Total stripLines:",
-            stripLinesArray.length,
-            stripLinesArray,
-          );
-
-          // Single Y-axis for all channels
-          const axisYArray = [
-            {
-              title: "Value",
-              titleFontSize: 14,
-              lineColor: "#369EAD",
-              tickColor: "#369EAD",
-              labelFontColor: "#369EAD",
-              gridThickness: 1,
-            },
-          ];
-
-          // If no axes defined, use default single axis
-          const finalAxisY =
-            axisYArray.length > 0
-              ? axisYArray
-              : [
-                  {
-                    title: "Values",
-                    titleFontSize: 14,
-                    lineColor: "#369EAD",
-                  },
-                ];
-
-          console.log("Chart options before update:", chart.options?.axisX);
-          console.log("StripLines to apply:", stripLinesArray);
 
           return {
             ...chart,
             ...(chart.options && {
               options: {
                 ...chart.options,
-                axisX: {
-                  ...chart.options.axisX,
-                  stripLines: stripLinesArray,
-                },
                 legend: {
                   cursor: "pointer",
                   fontSize: 16,
@@ -434,7 +387,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     return false;
                   }) as any,
                 },
-                axisY: finalAxisY,
+                axisY2: axisY2Array,
                 data: dataArray,
               },
             }),
@@ -449,6 +402,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       channelGroups,
       enableChartLegend,
       handleLegendClick,
+      setChartOptions,
+      channelIdToPlotInfoRef,
+    ]);
       setChartOptions,
     ]);
 
