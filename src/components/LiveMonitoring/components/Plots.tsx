@@ -330,8 +330,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const dataArray = [];
 
           // Map to track unique units and assign Y-axis indices
+          // -1 means primary axisY, 0+ means index in axisY2 array
           const unitToAxisMap = new Map<string, number>();
           const axisY2Array: any[] = [];
+          let primaryAxisY: any = null;
+          let primaryAxisColor = "#369EAD";
 
           // First pass: create Y-axes for all channels with channelInfo
           for (let i = 0; i < channels.length; i++) {
@@ -346,18 +349,31 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
               // Check if we already have an axis for this unit
               if (!unitToAxisMap.has(unit)) {
-                const axisIndex = unitToAxisMap.size;
-                unitToAxisMap.set(unit, axisIndex);
-
-                // Create Y-axis for this unit
-                axisY2Array.push({
-                  title: unit,
-                  titleFontSize: 14,
-                  lineColor: channelInfo.color || "#369EAD",
-                  tickColor: channelInfo.color || "#369EAD",
-                  labelFontColor: channelInfo.color || "#369EAD",
-                  gridThickness: axisIndex === 0 ? 1 : 0,
-                });
+                if (unitToAxisMap.size === 0) {
+                  // First unique unit - assign to primary axisY (index -1)
+                  unitToAxisMap.set(unit, -1);
+                  primaryAxisColor = channelInfo.color || "#369EAD";
+                  primaryAxisY = {
+                    title: unit,
+                    titleFontSize: 14,
+                    lineColor: channelInfo.color || "#369EAD",
+                    tickColor: channelInfo.color || "#369EAD",
+                    labelFontColor: channelInfo.color || "#369EAD",
+                    gridThickness: 1,
+                  };
+                } else {
+                  // Subsequent units - add to axisY2 array
+                  const axisIndex = axisY2Array.length;
+                  unitToAxisMap.set(unit, axisIndex);
+                  axisY2Array.push({
+                    title: unit,
+                    titleFontSize: 14,
+                    lineColor: channelInfo.color || "#369EAD",
+                    tickColor: channelInfo.color || "#369EAD",
+                    labelFontColor: channelInfo.color || "#369EAD",
+                    gridThickness: 0,
+                  });
+                }
               }
             }
           }
@@ -375,19 +391,28 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               const unit = channelInfo.unit || "Value";
               const assignedAxisIndex = unitToAxisMap.get(unit);
 
-              const dataWithAxis = {
-                ...data,
-                showInLegend: enableChartLegend,
-                axisYType: "secondary",
-                axisYIndex: assignedAxisIndex,
-              };
-
-              dataArray.push(dataWithAxis);
+              if (assignedAxisIndex === -1) {
+                // Use primary axisY - no axisYType/axisYIndex needed
+                const dataWithAxis = {
+                  ...data,
+                  showInLegend: enableChartLegend,
+                };
+                dataArray.push(dataWithAxis);
+              } else {
+                // Use secondary axisY2
+                const dataWithAxis = {
+                  ...data,
+                  showInLegend: enableChartLegend,
+                  axisYType: "secondary",
+                  axisYIndex: assignedAxisIndex,
+                };
+                dataArray.push(dataWithAxis);
+              }
             }
           }
 
-          // Primary Y-axis (y1) for "Value"
-          const axisY = {
+          // Use the primary axis we created, or default if none
+          const axisY = primaryAxisY || {
             title: "Value",
             titleFontSize: 14,
             lineColor: "#369EAD",
