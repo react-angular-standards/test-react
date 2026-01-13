@@ -209,12 +209,14 @@ export const Monitoring: React.FC = () => {
         }
       }
 
-      if (triggerPlot && dataChartRef.current) {
-        dataChartRef.current.updateChartDataOption();
-      }
+      if (triggerPlot) {
+        if (dashboard === "Plots" && dataChartRef.current) {
+          dataChartRef.current.updateChartDataOption();
+        }
 
-      if (triggerPlot && dataTableRef.current) {
-        dataTableRef.current.updateTableData();
+        if (dashboard === "Table" && dataTableRef.current) {
+          dataTableRef.current.updateTableData();
+        }
       }
 
       if (triggerDiscrete) {
@@ -229,6 +231,7 @@ export const Monitoring: React.FC = () => {
       activeDiscreteChannelsRef,
       setTriggerChart,
       updateDataPoints,
+      dashboard,
     ],
   );
 
