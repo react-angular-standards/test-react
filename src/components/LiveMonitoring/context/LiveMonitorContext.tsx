@@ -148,6 +148,52 @@ export const LiveMonitoringProvider: React.FC<{
     },
   ]);
 
+  // Helper function to reset all plot state to initial values
+  const resetPlotState = useCallback(() => {
+    activePlotChannelsRef.current = {};
+    seriesDataRef.current = {};
+    channelIdToPlotInfoRef.current = {};
+    setAvailableChannels([]);
+    setChannelGroups([]);
+    setChartOptions([
+      {
+        id: "main",
+        options: {
+          animationEnabled: false,
+          zoomEnabled: true,
+          zoomType: "xy",
+          theme: "light2",
+          title: { text: "Primary Group (Available Channels)", fontSize: 20 },
+          axisX: {
+            title: "Timestamp",
+            valueFormatString: "HH:mm:ss",
+            labelAngle: 90,
+            titleFontSize: 14,
+            gridThickness: 0.3,
+            labelAutoFit: true,
+            lineThickness: 0.5,
+            labelFontSize: 14,
+          },
+          axisY: [
+            {
+              title: "Data",
+              titleFontSize: 14,
+              labelFontSize: 14,
+              gridThickness: 0.4,
+              interlacedColor: "#F0F8FF",
+              lineThickness: 0.5,
+            },
+          ],
+          data: [],
+          width: window.innerWidth * 0.9,
+          height: 400,
+        },
+        width: window.innerWidth * 0.9,
+        height: 400,
+      },
+    ]);
+  }, [setAvailableChannels, setChannelGroups, setChartOptions]);
+
   const switchDataStreamWSConnection = useCallback(
     (event?: string | React.MouseEvent<HTMLButtonElement>) => {
       if (dataStreamWSRef.current && event !== "Reconnect") {
@@ -156,7 +202,7 @@ export const LiveMonitoringProvider: React.FC<{
         seriesDataRef.current = {};
         console.log("After ", seriesDataRef.current);
         if (event !== "SwitchConnection") {
-          activePlotChannelsRef.current = {};
+          resetPlotState();
           dataStreamWSRef.current = null;
           console.log(event);
           return;
@@ -164,8 +210,7 @@ export const LiveMonitoringProvider: React.FC<{
         console.log(event);
       } else if (event === "Terminate") {
         console.log("Termination called");
-        activePlotChannelsRef.current = {};
-        seriesDataRef.current = {};
+        resetPlotState();
         return;
       }
       try {
@@ -197,9 +242,7 @@ export const LiveMonitoringProvider: React.FC<{
         newSocket.onerror = (error) => {
           console.error("WebSocket error:", error);
           setConnectionState("Off");
-          Object.keys(seriesDataRef.current).forEach((key) => {
-            delete seriesDataRef.current[key];
-          });
+          resetPlotState();
           if (reconnectTimeoutRef.current) {
             window.clearTimeout(reconnectTimeoutRef.current);
             reconnectTimeoutRef.current = null;
@@ -207,9 +250,7 @@ export const LiveMonitoringProvider: React.FC<{
         };
 
         newSocket.onclose = (event) => {
-          Object.keys(seriesDataRef.current).forEach((key) => {
-            delete seriesDataRef.current[key];
-          });
+          resetPlotState();
           setConnectionState("Off");
           setIsStreaming(false);
           setIsRecording(false);
@@ -244,6 +285,7 @@ export const LiveMonitoringProvider: React.FC<{
       seriesDataRef,
       selectedSystemIndex,
       tabUniqueId,
+      resetPlotState,
     ],
   );
 
