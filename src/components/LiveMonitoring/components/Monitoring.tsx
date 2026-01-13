@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import TableChartIcon from "@mui/icons-material/TableChart";
 import BlurOnIcon from "@mui/icons-material/BlurOn";
 import DangerousSharpIcon from "@mui/icons-material/DangerousSharp";
 import DesktopMacSharpIcon from "@mui/icons-material/DesktopMacSharp";
@@ -25,6 +26,7 @@ import {
 
 // Import components
 import Plots, { DataChartFunction } from "./Plots";
+import LiveDataTable, { DataTableFunction } from "./LiveDataTable";
 
 // Placeholder components for components not yet extracted
 const PageDrawer: React.FC<any> = ({
@@ -50,6 +52,7 @@ const HistoricalDeviceHealth: React.FC = () => <div>Device Health</div>;
 
 type DashboardType =
   | "Plots"
+  | "Table"
   | "Discrete"
   | "DeviceHealth"
   | "HistoricalData"
@@ -93,6 +96,7 @@ export const Monitoring: React.FC = () => {
     main: null,
   });
   const dataChartRef = useRef<DataChartFunction>();
+  const dataTableRef = useRef<DataTableFunction>();
 
   const handleDrawerToggle = () => {
     toggleDrawerOpenState((prevOpen) => !prevOpen);
@@ -207,6 +211,10 @@ export const Monitoring: React.FC = () => {
 
       if (triggerPlot && dataChartRef.current) {
         dataChartRef.current.updateChartDataOption();
+      }
+
+      if (triggerPlot && dataTableRef.current) {
+        dataTableRef.current.updateTableData();
       }
 
       if (triggerDiscrete) {
@@ -373,6 +381,17 @@ export const Monitoring: React.FC = () => {
               open={drawerOpenState}
             />
           </ListItem>
+          <ListItem key={"Table"} disablePadding sx={{ display: "block" }}>
+            <MenuItem
+              icon={<TableChartIcon sx={{ fontSize: 21 }} />}
+              text={"Table View"}
+              onClick={() => {
+                setDashboard("Table");
+                activeDiscreteChannelsRef.current = {};
+              }}
+              open={drawerOpenState}
+            />
+          </ListItem>
           <ListItem key={"Discrete"} disablePadding sx={{ display: "block" }}>
             <MenuItem
               icon={<BlurOnIcon sx={{ fontSize: 21 }} />}
@@ -435,6 +454,16 @@ export const Monitoring: React.FC = () => {
           }}
         >
           <Plots drawerOpenState={drawerOpenState} ref={dataChartRef} />
+        </Box>
+      )}
+      {dashboard === "Table" && (
+        <Box
+          component="main"
+          sx={{
+            width: drawerOpenState ? "calc(99vw - 240px)" : "calc(99vw - 65px)",
+          }}
+        >
+          <LiveDataTable drawerOpenState={drawerOpenState} ref={dataTableRef} />
         </Box>
       )}
       {dashboard === "Discrete" && (
