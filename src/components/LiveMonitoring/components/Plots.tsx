@@ -19,6 +19,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { DropResult } from "react-beautiful-dnd";
 
 import CascadingMultiSelect from "./CascadingMultiSelect";
+import LiveDataTable, { DataTableFunction } from "./LiveDataTable";
 import { useLiveMonitoringContext } from "../context/LiveMonitorContext";
 import { ChannelGroup } from "../types/ConfiguredChannelSchema";
 import { customPlotsStyles } from "../../Widgets/CustomStyle";
@@ -29,6 +30,9 @@ import { CustomSlider } from "../../Widgets/CustomSlider";
 import { UrlConstant } from "../../../util/UrlConstans";
 import { useRecordedLiveData } from "../../../hooks/useRecordedLiveData";
 import { PlotGroupSelection } from "./PlotGroupSelection";
+import TableChartIcon from "@mui/icons-material/TableChart";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import Button from "@mui/material/Button";
 
 interface LiveMonitoringProps {
   drawerOpenState: boolean;
@@ -80,6 +84,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     const [isUpdateRecordingRequired, setIsUpdateRecordingRequired] =
       useState(false);
     const [showChannelSection, setShowChannelSection] = useState(false);
+    const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
+    const dataTableRef = useRef<DataTableFunction>();
 
     const {
       recordedDataTimeRangeRef,
@@ -457,9 +463,14 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     useImperativeHandle(
       ref,
       () => ({
-        updateChartDataOption,
+        updateChartDataOption: () => {
+          updateChartDataOption();
+          if (viewMode === "table" && dataTableRef.current) {
+            dataTableRef.current.updateTableData();
+          }
+        },
       }),
-      [updateChartDataOption],
+      [updateChartDataOption, viewMode],
     );
 
     const addChannelToTargetGroup = (
@@ -717,8 +728,28 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             )}
           </div>
           <div className={showChannelSection ? "col-9" : "col-12"} ref={divRef}>
-            <div className="row plot-margin">
-              <GridLayout
+            <div className="row" style={{ marginBottom: "10px", paddingLeft: "20px" }}>
+              <div className="col-12">
+                <Button
+                  variant={viewMode === "chart" ? "contained" : "outlined"}
+                  startIcon={<QueryStatsIcon />}
+                  onClick={() => setViewMode("chart")}
+                  sx={{ marginRight: "10px" }}
+                >
+                  Chart View
+                </Button>
+                <Button
+                  variant={viewMode === "table" ? "contained" : "outlined"}
+                  startIcon={<TableChartIcon />}
+                  onClick={() => setViewMode("table")}
+                >
+                  Table View
+                </Button>
+              </div>
+            </div>
+            {viewMode === "chart" && (
+              <div className="row plot-margin">
+                <GridLayout
                 className="layout"
                 layout={gridLayout}
                 cols={12}
@@ -814,6 +845,20 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 })}
               </GridLayout>
             </div>
+            )}
+            {viewMode === "table" && (
+              <div className="row plot-margin">
+                <div className="col-12">
+                  <LiveDataTable
+                    ref={dataTableRef}
+                    selectedChannels={[
+                      ...availableChannels,
+                      ...(channelGroups?.flatMap(group => group.channels) || [])
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <div className="col-3">
             {!showChannelSection && (
