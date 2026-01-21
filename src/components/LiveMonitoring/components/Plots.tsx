@@ -83,7 +83,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
     const [isUpdateRecordingRequired, setIsUpdateRecordingRequired] =
       useState(false);
-    const [showChannelSection, setShowChannelSection] = useState(false);
+    const [showChannelSection, setShowChannelSection] = useState(true);
     const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
     const dataTableRef = useRef<DataTableFunction>();
 
@@ -102,16 +102,21 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     });
 
     const handleLegendClick = useCallback(
-      (channelIdOrName: string) => {
+      (channelIdOrName: string, chartRef: any) => {
         // Extract numeric ID if it contains " - " separator
         const numericId = channelIdOrName.includes(" - ")
           ? channelIdOrName.split(" - ")[0]
           : channelIdOrName;
 
         if (activePlotChannelsRef.current[numericId]) {
-          activePlotChannelsRef.current[numericId].visible = !(
-            activePlotChannelsRef?.current[numericId]?.visible || false
-          );
+          // Toggle visibility
+          const currentVisibility = activePlotChannelsRef.current[numericId].visible;
+          activePlotChannelsRef.current[numericId].visible = !currentVisibility;
+
+          // Force chart re-render
+          if (chartRef?.render) {
+            chartRef.render();
+          }
         }
       },
       [activePlotChannelsRef],
@@ -436,8 +441,22 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                   cursor: "pointer",
                   fontSize: 16,
                   itemclick: ((e: any) => {
-                    handleLegendClick(e.dataSeries.name.replace(/-.*$/g, ""));
-                    return false;
+                    const channelName = e.dataSeries.name;
+                    const numericId = channelName.includes(" - ")
+                      ? channelName.split(" - ")[0]
+                      : channelName;
+
+                    if (activePlotChannelsRef.current[numericId]) {
+                      // Toggle visibility and update the chart
+                      if (typeof e.dataSeries.visible === "undefined" || e.dataSeries.visible) {
+                        e.dataSeries.visible = false;
+                      } else {
+                        e.dataSeries.visible = true;
+                      }
+                      e.chart.render();
+                    }
+
+                    e.preventDefault();
                   }) as any,
                 },
                 axisY: axisY,
@@ -617,7 +636,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 ...(mainChart.options && {
                   options: {
                     ...mainChart.options,
-                    title: { text: newGroup.name, fontSize: 20 },
                     data: [],
                   },
                 }),
@@ -665,24 +683,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
     const updateChartTitle = useCallback(
       (groupId: string, newName: string) => {
-        setChartOptions((chartOp) =>
-          chartOp.map((chat) => {
-            if (chat.id === groupId) {
-              return {
-                ...chat,
-                ...(chat.options && {
-                  options: {
-                    ...chat.options,
-                    title: { text: newName, fontSize: 20 },
-                  },
-                }),
-              };
-            }
-            return chat;
-          }),
-        );
+        // Title removed - no longer updating chart title
       },
-      [setChartOptions],
+      [],
     );
 
     const updateGroup = (groupId: string, newName: string) => {
@@ -775,11 +778,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 {chartOptions.map((chart) => {
                   return (
                     <div className="chart-container" key={chart.id}>
-                      <div className="draggable-handle">
-                        <span className="title-text">
-                          {chart.options?.title?.text || "Untitled"}
-                        </span>
-                      </div>
                       <div className="plot-data-container">
                         <Tooltip
                           title={

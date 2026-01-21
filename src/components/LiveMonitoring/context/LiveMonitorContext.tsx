@@ -118,7 +118,6 @@ export const LiveMonitoringProvider: React.FC<{
         zoomEnabled: true,
         zoomType: "xy",
         theme: "light2",
-        title: { text: "Primary Group (Available Channels)", fontSize: 20 },
         axisX: {
           title: "Timestamp",
           valueFormatString: "HH:mm:ss",
@@ -163,7 +162,6 @@ export const LiveMonitoringProvider: React.FC<{
           zoomEnabled: true,
           zoomType: "xy",
           theme: "light2",
-          title: { text: "Primary Group (Available Channels)", fontSize: 20 },
           axisX: {
             title: "Timestamp",
             valueFormatString: "HH:mm:ss",

@@ -64,9 +64,9 @@ export const customPlotsStyles = `
   .plot-pause-handle {
     position: absolute;
     top: 10px;
-    right: 50px;
+    right: 10px;
     cursor: pointer;
-    z-index: 10;
+    z-index: 11;
   }
 
   .resize-handle {
@@ -80,11 +80,15 @@ export const customPlotsStyles = `
 
   .time-range-handle {
     position: absolute;
-    bottom: 20px;
+    bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
     width: 80%;
     z-index: 10;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
 
   .toggle-icon-hidden {

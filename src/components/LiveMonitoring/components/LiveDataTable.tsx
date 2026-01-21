@@ -30,40 +30,52 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
     const { activePlotChannelsRef, channelIdToPlotInfoRef } =
       useLiveMonitoringContext();
 
-    const [tableData, setTableData] = useState<{
-      timestamp: string;
-      values: { [channelId: string]: number | string };
-    }>({
-      timestamp: new Date().toLocaleTimeString(),
-      values: {},
-    });
+    const [tableData, setTableData] = useState<
+      Array<{
+        timestamp: Date;
+        channelId: string;
+        value: number | string;
+        unit: string;
+      }>
+    >([]);
 
     const updateTableData = useCallback(() => {
-      const latestValues: { [channelId: string]: number | string } = {};
-      let latestTimestamp = new Date();
+      const currentTime = Date.now();
+      const twoSecondsAgo = currentTime - 2000;
+      const rows: Array<{
+        timestamp: Date;
+        channelId: string;
+        value: number | string;
+        unit: string;
+      }> = [];
 
       selectedChannels.forEach((channel) => {
         const numericId = channel.split(" - ")[0];
         const data = activePlotChannelsRef.current[numericId];
+        const channelInfo = channelIdToPlotInfoRef.current[numericId];
+        const unit = channelInfo?.unit || "-";
 
         if (data?.dataPoints && data.dataPoints.length > 0) {
-          const lastPoint = data.dataPoints[data.dataPoints.length - 1];
-          latestValues[numericId] = lastPoint.y;
-
-          // Use the most recent timestamp across all channels
-          if (lastPoint.x > latestTimestamp) {
-            latestTimestamp = new Date(lastPoint.x);
-          }
-        } else {
-          latestValues[numericId] = "-";
+          // Filter data points from last 2 seconds
+          data.dataPoints.forEach((point) => {
+            const pointTime = new Date(point.x).getTime();
+            if (pointTime >= twoSecondsAgo) {
+              rows.push({
+                timestamp: new Date(point.x),
+                channelId: numericId,
+                value: point.y,
+                unit: unit,
+              });
+            }
+          });
         }
       });
 
-      setTableData({
-        timestamp: latestTimestamp.toLocaleTimeString(),
-        values: latestValues,
-      });
-    }, [activePlotChannelsRef, selectedChannels]);
+      // Sort by timestamp descending (newest first)
+      rows.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      setTableData(rows);
+    }, [activePlotChannelsRef, channelIdToPlotInfoRef, selectedChannels]);
 
     useImperativeHandle(
       ref,
@@ -101,71 +113,96 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
                   >
                     Timestamp
                   </TableCell>
-                  {selectedChannels.map((channel) => {
-                    const numericId = channel.split(" - ")[0];
-                    const channelInfo =
-                      channelIdToPlotInfoRef.current[numericId];
-                    const unit = channelInfo?.unit || "Value";
-
-                    return (
-                      <TableCell
-                        key={numericId}
-                        align="center"
-                        sx={{
-                          fontWeight: "bold",
-                          backgroundColor: channelInfo?.color || "#1976d2",
-                          color: "white",
-                          fontSize: "16px",
-                        }}
-                      >
-                        {channel} ({unit})
-                      </TableCell>
-                    );
-                  })}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      fontWeight: "bold",
+                      backgroundColor: "#1976d2",
+                      color: "white",
+                      fontSize: "16px",
+                    }}
+                  >
+                    Channel ID
+                  </TableCell>
+                  <TableCell
+                    align="center"
+                    sx={{
+                      fontWeight: "bold",
+                      backgroundColor: "#1976d2",
+                      color: "white",
+                      fontSize: "16px",
+                    }}
+                  >
+                    Value
+                  </TableCell>
+                  <TableCell
+                    align="center"
+                    sx={{
+                      fontWeight: "bold",
+                      backgroundColor: "#1976d2",
+                      color: "white",
+                      fontSize: "16px",
+                    }}
+                  >
+                    Unit
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {selectedChannels.length > 0 ? (
-                  <TableRow
-                    sx={{
-                      "&:hover": { backgroundColor: "#f5f5f5" },
-                    }}
-                  >
-                    <TableCell
-                      component="th"
-                      scope="row"
+                {tableData.length > 0 ? (
+                  tableData.map((row, index) => (
+                    <TableRow
+                      key={`${row.channelId}-${row.timestamp.getTime()}-${index}`}
                       sx={{
-                        fontWeight: "medium",
-                        fontSize: "14px",
+                        "&:hover": { backgroundColor: "#f5f5f5" },
                       }}
                     >
-                      {tableData.timestamp}
-                    </TableCell>
-                    {selectedChannels.map((channel) => {
-                      const numericId = channel.split(" - ")[0];
-                      const value = tableData.values[numericId];
-
-                      return (
-                        <TableCell
-                          key={numericId}
-                          align="center"
-                          sx={{
-                            fontSize: "14px",
-                            fontWeight: value === "-" ? "normal" : "bold",
-                            color: value === "-" ? "#999" : "#000",
-                          }}
-                        >
-                          {typeof value === "number"
-                            ? value.toFixed(2)
-                            : value}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
+                      <TableCell
+                        component="th"
+                        scope="row"
+                        sx={{
+                          fontWeight: "medium",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {row.timestamp.toLocaleTimeString()}.
+                        {row.timestamp.getMilliseconds()}
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: "medium",
+                        }}
+                      >
+                        {row.channelId}
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {typeof row.value === "number"
+                          ? row.value.toFixed(2)
+                          : row.value}
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontSize: "14px",
+                          color: "#666",
+                        }}
+                      >
+                        {row.unit}
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={1}
+                      colSpan={4}
                       align="center"
                       sx={{
                         fontSize: "16px",
@@ -173,7 +210,8 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
                         padding: "40px",
                       }}
                     >
-                      No channels selected. Please select channels to view data.
+                      No data available. Please select channels and start
+                      streaming.
                     </TableCell>
                   </TableRow>
                 )}
