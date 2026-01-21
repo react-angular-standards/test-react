@@ -456,7 +456,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                       e.chart.render();
                     }
 
-                    e.preventDefault();
+                    return false;
                   }) as any,
                 },
                 axisY: axisY,
@@ -860,15 +860,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           </div>
           <div className="col-3">
             {!showChannelSection && (
-              <div
-                className="toggle-icon-hidden"
-                onClick={toggleChannelSection}
-                title="Show dashboard settings"
-              >
-                <ThreeBarsIcon size={24} />
-              </div>
-            )}
-            {showChannelSection && (
               <PlotGroupSelection
                 availableChannels={availableChannels}
                 bufferTimeWindow={bufferTimeWindow}

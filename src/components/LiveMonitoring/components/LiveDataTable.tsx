@@ -89,6 +89,9 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
     useEffect(() => {
       if (selectedChannels.length === 0) return;
 
+      // Call immediately first time
+      updateTableData();
+
       const intervalId = setInterval(() => {
         updateTableData();
       }, 1000);
