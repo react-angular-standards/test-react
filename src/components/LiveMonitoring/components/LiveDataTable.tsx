@@ -14,19 +14,39 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 import { useLiveMonitoringContext } from "../context/LiveMonitorContext";
 
 interface LiveDataTableProps {
-  selectedChannels: string[];
+  selectedChannels?: string[];
 }
 
 export interface DataTableFunction {
   updateTableData: () => void;
 }
 
+// Table header style - matching historical data table
+const headerCellStyle = {
+  fontWeight: 600,
+  backgroundColor: "#f8f9fa",
+  color: "#495057",
+  fontSize: "13px",
+  padding: "12px 16px",
+  borderBottom: "2px solid #dee2e6",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.5px",
+};
+
+// Table row style
+const bodyCellStyle = {
+  fontSize: "13px",
+  padding: "10px 16px",
+  borderBottom: "1px solid #e9ecef",
+};
+
 const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
   (props, ref) => {
-    const { selectedChannels } = props;
     const { activePlotChannelsRef, channelIdToPlotInfoRef } =
       useLiveMonitoringContext();
 
@@ -34,48 +54,48 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
       Array<{
         timestamp: Date;
         channelId: string;
+        channelName: string;
         value: number | string;
         unit: string;
       }>
     >([]);
 
     const updateTableData = useCallback(() => {
-      const currentTime = Date.now();
-      const twoSecondsAgo = currentTime - 2000;
       const rows: Array<{
         timestamp: Date;
         channelId: string;
+        channelName: string;
         value: number | string;
         unit: string;
       }> = [];
 
-      selectedChannels.forEach((channel) => {
-        const numericId = channel.split(" - ")[0];
+      // Get all active channels directly from the ref
+      const activeChannelIds = Object.keys(activePlotChannelsRef.current);
+
+      activeChannelIds.forEach((numericId) => {
         const data = activePlotChannelsRef.current[numericId];
         const channelInfo = channelIdToPlotInfoRef.current[numericId];
         const unit = channelInfo?.unit || "-";
+        const channelName = data?.name || numericId;
 
         if (data?.dataPoints && data.dataPoints.length > 0) {
-          // Filter data points from last 2 seconds
-          data.dataPoints.forEach((point) => {
-            const pointTime = new Date(point.x).getTime();
-            if (pointTime >= twoSecondsAgo) {
-              rows.push({
-                timestamp: new Date(point.x),
-                channelId: numericId,
-                value: point.y,
-                unit: unit,
-              });
-            }
+          // Get only the latest data point for each channel
+          const latestPoint = data.dataPoints[data.dataPoints.length - 1];
+          rows.push({
+            timestamp: new Date(latestPoint.x),
+            channelId: numericId,
+            channelName: channelName,
+            value: latestPoint.y,
+            unit: unit,
           });
         }
       });
 
-      // Sort by timestamp descending (newest first)
-      rows.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      // Sort by channel ID
+      rows.sort((a, b) => a.channelId.localeCompare(b.channelId, undefined, { numeric: true }));
 
       setTableData(rows);
-    }, [activePlotChannelsRef, channelIdToPlotInfoRef, selectedChannels]);
+    }, [activePlotChannelsRef, channelIdToPlotInfoRef]);
 
     useImperativeHandle(
       ref,
@@ -85,68 +105,42 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
       [updateTableData],
     );
 
-    // Auto-update table every second
+    // Auto-update table every 500ms for smoother updates
     useEffect(() => {
-      if (selectedChannels.length === 0) return;
-
       // Call immediately first time
       updateTableData();
 
       const intervalId = setInterval(() => {
         updateTableData();
-      }, 1000);
+      }, 500);
 
       return () => clearInterval(intervalId);
-    }, [selectedChannels, updateTableData]);
+    }, [updateTableData]);
 
     return (
-      <div className="row">
-        <div className="col-12">
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader aria-label="live data table">
+      <Box sx={{ width: "100%", p: 2 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            border: "1px solid #dee2e6",
+            borderRadius: "8px",
+            overflow: "hidden"
+          }}
+        >
+          <TableContainer sx={{ maxHeight: 500 }}>
+            <Table stickyHeader size="small" aria-label="live data table">
               <TableHead>
                 <TableRow>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      backgroundColor: "#1976d2",
-                      color: "white",
-                      fontSize: "16px",
-                    }}
-                  >
+                  <TableCell sx={headerCellStyle}>
                     Timestamp
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: "bold",
-                      backgroundColor: "#1976d2",
-                      color: "white",
-                      fontSize: "16px",
-                    }}
-                  >
+                  <TableCell sx={headerCellStyle}>
                     Channel ID
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: "bold",
-                      backgroundColor: "#1976d2",
-                      color: "white",
-                      fontSize: "16px",
-                    }}
-                  >
+                  <TableCell align="right" sx={headerCellStyle}>
                     Value
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: "bold",
-                      backgroundColor: "#1976d2",
-                      color: "white",
-                      fontSize: "16px",
-                    }}
-                  >
+                  <TableCell sx={headerCellStyle}>
                     Unit
                   </TableCell>
                 </TableRow>
@@ -157,47 +151,31 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
                     <TableRow
                       key={`${row.channelId}-${row.timestamp.getTime()}-${index}`}
                       sx={{
-                        "&:hover": { backgroundColor: "#f5f5f5" },
+                        "&:hover": { backgroundColor: "#f8f9fa" },
+                        "&:nth-of-type(even)": { backgroundColor: "#fafbfc" },
                       }}
                     >
-                      <TableCell
-                        component="th"
-                        scope="row"
-                        sx={{
-                          fontWeight: "medium",
-                          fontSize: "14px",
-                        }}
-                      >
+                      <TableCell sx={{ ...bodyCellStyle, fontFamily: "monospace" }}>
                         {row.timestamp.toLocaleTimeString()}.
-                        {row.timestamp.getMilliseconds()}
+                        {String(row.timestamp.getMilliseconds()).padStart(3, "0")}
                       </TableCell>
-                      <TableCell
-                        align="center"
-                        sx={{
-                          fontSize: "14px",
-                          fontWeight: "medium",
-                        }}
-                      >
+                      <TableCell sx={{ ...bodyCellStyle, color: "#495057" }}>
                         {row.channelId}
                       </TableCell>
                       <TableCell
-                        align="center"
+                        align="right"
                         sx={{
-                          fontSize: "14px",
-                          fontWeight: "bold",
+                          ...bodyCellStyle,
+                          fontWeight: 600,
+                          fontFamily: "monospace",
+                          color: "#212529"
                         }}
                       >
                         {typeof row.value === "number"
-                          ? row.value.toFixed(2)
+                          ? row.value.toFixed(4)
                           : row.value}
                       </TableCell>
-                      <TableCell
-                        align="center"
-                        sx={{
-                          fontSize: "14px",
-                          color: "#666",
-                        }}
-                      >
+                      <TableCell sx={{ ...bodyCellStyle, color: "#6c757d" }}>
                         {row.unit}
                       </TableCell>
                     </TableRow>
@@ -208,21 +186,37 @@ const LiveDataTable = forwardRef<DataTableFunction, LiveDataTableProps>(
                       colSpan={4}
                       align="center"
                       sx={{
-                        fontSize: "16px",
-                        color: "#999",
-                        padding: "40px",
+                        padding: "48px 16px",
                       }}
                     >
-                      No data available. Please select channels and start
-                      streaming.
+                      <Typography variant="body2" color="text.secondary">
+                        No data available. Select channels and start streaming.
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
-        </div>
-      </div>
+          {tableData.length > 0 && (
+            <Box sx={{
+              p: 1.5,
+              borderTop: "1px solid #dee2e6",
+              backgroundColor: "#f8f9fa",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <Typography variant="caption" color="text.secondary">
+                Showing latest values
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {tableData.length} channels
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
     );
   },
 );
