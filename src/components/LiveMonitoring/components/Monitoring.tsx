@@ -17,6 +17,7 @@ import LanguageSharpIcon from "@mui/icons-material/LanguageSharp";
 import MedicalInformationIcon from "@mui/icons-material/MedicalInformation";
 import StorageIcon from "@mui/icons-material/Storage";
 import TextRotationNoneIcon from "@mui/icons-material/TextRotationNone";
+import TableChartIcon from "@mui/icons-material/TableChart";
 
 import {
   ConnectionType,
@@ -25,6 +26,7 @@ import {
 
 // Import components
 import Plots, { DataChartFunction } from "./Plots";
+import LiveDataTable from "./LiveDataTable";
 
 // Placeholder components for components not yet extracted
 const PageDrawer: React.FC<any> = ({
@@ -53,7 +55,8 @@ type DashboardType =
   | "Discrete"
   | "DeviceHealth"
   | "HistoricalData"
-  | "Analog Output";
+  | "Analog Output"
+  | "LiveDataTable";
 
 enum DataBytePosition {
   Size = 0,
@@ -65,10 +68,6 @@ enum DataBytePosition {
   TimeStamp = 12,
   TimeDelta = 20,
   Payload = 28,
-}
-
-interface DataChartFunction {
-  updateChartDataOption: () => void;
 }
 
 export const Monitoring: React.FC = () => {
@@ -384,6 +383,20 @@ export const Monitoring: React.FC = () => {
             />
           </ListItem>
           <ListItem
+            key={"LiveDataTable"}
+            disablePadding
+            sx={{ display: "block" }}
+          >
+            <MenuItem
+              icon={<TableChartIcon sx={{ fontSize: 21 }} />}
+              text={"Live Data Table"}
+              onClick={() => {
+                setDashboard("LiveDataTable");
+              }}
+              open={drawerOpenState}
+            />
+          </ListItem>
+          <ListItem
             key={"Voltage Output"}
             disablePadding
             sx={{ display: "block" }}
@@ -435,6 +448,16 @@ export const Monitoring: React.FC = () => {
           }}
         >
           <Plots drawerOpenState={drawerOpenState} ref={dataChartRef} />
+        </Box>
+      )}
+      {dashboard === "LiveDataTable" && (
+        <Box
+          component="main"
+          sx={{
+            width: drawerOpenState ? "calc(99vw - 240px)" : "calc(99vw - 65px)",
+          }}
+        >
+          <LiveDataTable selectedChannels={[]} />
         </Box>
       )}
       {dashboard === "Discrete" && (

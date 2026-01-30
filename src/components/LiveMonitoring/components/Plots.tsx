@@ -19,7 +19,6 @@ import Tooltip from "@mui/material/Tooltip";
 import { DropResult } from "react-beautiful-dnd";
 
 import CascadingMultiSelect from "./CascadingMultiSelect";
-import LiveDataTable, { DataTableFunction } from "./LiveDataTable";
 import { useLiveMonitoringContext } from "../context/LiveMonitorContext";
 import { ChannelGroup } from "../types/ConfiguredChannelSchema";
 import { customPlotsStyles } from "../../Widgets/CustomStyle";
@@ -30,9 +29,6 @@ import { CustomSlider } from "../../Widgets/CustomSlider";
 import { UrlConstant } from "../../../util/UrlConstans";
 import { useRecordedLiveData } from "../../../hooks/useRecordedLiveData";
 import { PlotGroupSelection } from "./PlotGroupSelection";
-import TableChartIcon from "@mui/icons-material/TableChart";
-import QueryStatsIcon from "@mui/icons-material/QueryStats";
-import Button from "@mui/material/Button";
 
 interface LiveMonitoringProps {
   drawerOpenState: boolean;
@@ -84,8 +80,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     const [isUpdateRecordingRequired, setIsUpdateRecordingRequired] =
       useState(false);
     const [showChannelSection, setShowChannelSection] = useState(true);
-    const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
-    const dataTableRef = useRef<DataTableFunction>();
 
     const {
       recordedDataTimeRangeRef,
@@ -501,12 +495,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       () => ({
         updateChartDataOption: () => {
           updateChartDataOption();
-          if (viewMode === "table" && dataTableRef.current) {
-            dataTableRef.current.updateTableData();
-          }
         },
       }),
-      [updateChartDataOption, viewMode],
+      [updateChartDataOption],
     );
 
     const addChannelToTargetGroup = (
@@ -754,136 +745,98 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             )}
           </div>
           <div className={showChannelSection ? "col-9" : "col-12"} ref={divRef}>
-            <div
-              className="row"
-              style={{ marginBottom: "10px", paddingLeft: "20px" }}
-            >
-              <div className="col-12">
-                <Button
-                  variant={viewMode === "chart" ? "contained" : "outlined"}
-                  startIcon={<QueryStatsIcon />}
-                  onClick={() => setViewMode("chart")}
-                  sx={{ marginRight: "10px" }}
-                >
-                  Chart View
-                </Button>
-                <Button
-                  variant={viewMode === "table" ? "contained" : "outlined"}
-                  startIcon={<TableChartIcon />}
-                  onClick={() => setViewMode("table")}
-                >
-                  Table View
-                </Button>
-              </div>
-            </div>
-            {viewMode === "chart" && (
-              <div className="row plot-margin">
-                <GridLayout
-                  className="layout"
-                  layout={gridLayout}
-                  cols={12}
-                  rowHeight={window.innerHeight * 0.11}
-                  width={Math.round(
-                    (window.innerWidth - (drawerOpenState ? 240 : 65)) *
-                      (showChannelSection ? 0.73 : 0.985),
-                  )}
-                  isDraggable={true}
-                  isResizable={false}
-                  draggableHandle=".draggable-handle"
-                  onLayoutChange={(newLayout: LayoutItems[]) => {
-                    setChartOptions((options) => {
-                      const sortedOptions = handleLayoutChange(
-                        newLayout,
-                        options,
-                        showChannelSection,
-                      );
-                      return sortedOptions;
-                    });
-                  }}
-                >
-                  {chartOptions.map((chart) => {
-                    return (
-                      <div className="chart-container" key={chart.id}>
-                        <div className="plot-data-container">
-                          <Tooltip
-                            title={
-                              isPlotPausedForAnalysis
-                                ? "Resume Monitoring"
-                                : "Pause Monitoring"
-                            }
-                          >
-                            <span
-                              className="plot-pause-handle"
-                              onClick={handlePauseForAnalysis}
-                            >
-                              {(isPlotPausedForAnalysis && (
-                                <PlayCircleOutlineIcon
-                                  fontSize="medium"
-                                  color="primary"
-                                />
-                              )) || (
-                                <PauseCircleOutlineIcon
-                                  fontSize="medium"
-                                  color="warning"
-                                />
-                              )}
-                            </span>
-                          </Tooltip>
-                          <CanvasJSReact.CanvasJSChart
-                            ref={(ref: ChartInstance) =>
-                              (chartRefs.current[chart.id] = ref)
-                            }
-                            options={chart.options}
-                          />
-                          {isPlotPausedForAnalysis && (
-                            <span className="time-range-handle">
-                              <CustomSlider
-                                id={chart.id}
-                                initValue={[
-                                  recordedDataTimeRangeRef.current[1] - 5000,
-                                  recordedDataTimeRangeRef.current[1],
-                                ]}
-                                range={recordedDataTimeRangeRef.current}
-                                onChange={updatePlotsWithRecordedData}
-                              />
-                            </span>
-                          )}
-                          <span
-                            className="resize-handle"
-                            onMouseDown={(e) =>
-                              handleResizeStart(
-                                e,
-                                chart.id,
-                                chart.width,
-                                chart.height,
-                              )
-                            }
-                          >
-                            <Tooltip title="Resize">
-                              <TabIcon size={22} />
-                            </Tooltip>
-                          </span>
-                        </div>
-                      </div>
+            <div className="row plot-margin">
+              <GridLayout
+                className="layout"
+                layout={gridLayout}
+                cols={12}
+                rowHeight={window.innerHeight * 0.11}
+                width={Math.round(
+                  (window.innerWidth - (drawerOpenState ? 240 : 65)) *
+                    (showChannelSection ? 0.73 : 0.985),
+                )}
+                isDraggable={true}
+                isResizable={false}
+                draggableHandle=".draggable-handle"
+                onLayoutChange={(newLayout: LayoutItems[]) => {
+                  setChartOptions((options) => {
+                    const sortedOptions = handleLayoutChange(
+                      newLayout,
+                      options,
+                      showChannelSection,
                     );
-                  })}
-                </GridLayout>
-              </div>
-            )}
-            {viewMode === "table" && (
-              <div className="row plot-margin">
-                <div className="col-12">
-                  <LiveDataTable
-                    ref={dataTableRef}
-                    selectedChannels={[
-                      ...availableChannels,
-                      ...(channelGroups?.flatMap((group) => group.channels) ||
-                        []),
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
+                    return sortedOptions;
+                  });
+                }}
+              >
+                {chartOptions.map((chart) => {
+                  return (
+                    <div className="chart-container" key={chart.id}>
+                      <div className="plot-data-container">
+                        <Tooltip
+                          title={
+                            isPlotPausedForAnalysis
+                              ? "Resume Monitoring"
+                              : "Pause Monitoring"
+                          }
+                        >
+                          <span
+                            className="plot-pause-handle"
+                            onClick={handlePauseForAnalysis}
+                          >
+                            {(isPlotPausedForAnalysis && (
+                              <PlayCircleOutlineIcon
+                                fontSize="medium"
+                                color="primary"
+                              />
+                            )) || (
+                              <PauseCircleOutlineIcon
+                                fontSize="medium"
+                                color="warning"
+                              />
+                            )}
+                          </span>
+                        </Tooltip>
+                        <CanvasJSReact.CanvasJSChart
+                          ref={(ref: ChartInstance) =>
+                            (chartRefs.current[chart.id] = ref)
+                          }
+                          options={chart.options}
+                        />
+                        {isPlotPausedForAnalysis && (
+                          <span className="time-range-handle">
+                            <CustomSlider
+                              id={chart.id}
+                              initValue={[
+                                recordedDataTimeRangeRef.current[1] - 5000,
+                                recordedDataTimeRangeRef.current[1],
+                              ]}
+                              range={recordedDataTimeRangeRef.current}
+                              onChange={updatePlotsWithRecordedData}
+                            />
+                          </span>
+                        )}
+                        <span
+                          className="resize-handle"
+                          onMouseDown={(e) =>
+                            handleResizeStart(
+                              e,
+                              chart.id,
+                              chart.width,
+                              chart.height,
+                            )
+                          }
+                        >
+                          <Tooltip title="Resize">
+                            <TabIcon size={22} />
+                          </Tooltip>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </GridLayout>
+            </div>
           </div>
           <div className="col-3">
             {!showChannelSection && (
