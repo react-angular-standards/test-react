@@ -51,7 +51,7 @@ const customStyles = {
 };
 
 interface CascadingMultiSelectProps {
-  onChannelSelect?: (channels: string[]) => void;
+  onChannelSelect?: (channelIds: string[]) => void;
   onRecordCall: () => void;
   connectionStatus: string;
 }
@@ -84,22 +84,20 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     (optionListToMatch: Option[]) => {
       let changesDetected = false;
       if (connectionStatus !== "Off") {
-        const channelList = Object.keys(activePlotChannelsRef.current);
-        console.log("channelList", channelList);
+        const channelIdsToMatch = new Set(
+          optionListToMatch.map((opt) => opt.channelId || opt.value),
+        );
 
-        channelList.forEach((channelId) => {
-          // Extract numeric ID from options to match against activePlotChannelsRef keys
-          if (
-            !optionListToMatch.some(
-              (option) => option.value.split(" - ")[0] === channelId,
-            )
-          ) {
+        // Clean up channels that are no longer selected
+        Object.keys(channelIdToPlotInfoRef.current).forEach((channelId) => {
+          if (!channelIdsToMatch.has(channelId)) {
             delete activePlotChannelsRef.current[channelId];
             delete channelIdToPlotInfoRef.current[channelId];
             changesDetected = true;
           }
         });
 
+        // Sync selectedOptions from channelIdToPlotInfoRef
         setSelectedOptions(Object.values(channelIdToPlotInfoRef.current));
       } else {
         setSelectedOptions([]);
@@ -122,18 +120,15 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
         return;
       }
 
-      // Extract numeric ID from "channelId - channelName" format for WebSocket
-      const numericId = availableOpt.value.split(" - ")[0];
+      // Use channelId directly from the option
+      const channelId = availableOpt.channelId || availableOpt.value;
 
-      // Check if this channel already has a yAxisIndex and color assigned
-      const existingInfo = channelIdToPlotInfoRef.current[numericId];
+      // Preserve existing yAxisIndex and color if channel already exists
+      const existingInfo = channelIdToPlotInfoRef.current[channelId];
 
-      channelIdToPlotInfoRef.current[numericId] = {
-        yAxisIndex: existingInfo?.yAxisIndex ?? parseInt(numericId),
-        value: availableOpt.value,
-        label: availableOpt.label,
-        channelName: availableOpt.channelName,
-        unit: availableOpt.unit,
+      channelIdToPlotInfoRef.current[channelId] = {
+        ...availableOpt,
+        yAxisIndex: existingInfo?.yAxisIndex ?? parseInt(channelId),
         color: existingInfo?.color ?? availableOpt.color,
       };
     },
@@ -174,18 +169,20 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
   };
 
   const handleStreamButtonClick = useCallback(() => {
+    // Update channelIdToPlotInfoRef with selected options
     selectedOptions.forEach((opt) => {
       updateChannelsToPlot(opt);
     });
+
+    // Clean up channels that are no longer selected
     cleanUpSelectedChannels(selectedOptions);
 
     if (onChannelSelect) {
-      // Pass the full "id - name" format for display purposes
-      const channelValues = Object.values(channelIdToPlotInfoRef.current).map(
-        (opt) => opt.value,
-      );
-      onChannelSelect(channelValues);
+      // Pass only channelIds - Plots.tsx will use channelIdToPlotInfoRef directly
+      const channelIds = Object.keys(channelIdToPlotInfoRef.current);
+      onChannelSelect(channelIds);
     }
+
     setIsStreaming(true);
     setIsChannelListChanged(false);
     sendDynamicChannelRequest(session?.name || "Invalid User");

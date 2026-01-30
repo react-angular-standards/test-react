@@ -137,8 +137,9 @@ export const fetchConfiguredChannels = async (
                 ) {
                   try {
                     continuousDataChannel.push({
-                      value: channelId + " - " + channel.channel_name,
+                      value: channelId,
                       label: channelId + " - " + channel.channel_name,
+                      channelId: channelId,
                       chassisId: chassisName,
                       cardId: card.Task_id,
                       isSelectAll: false,

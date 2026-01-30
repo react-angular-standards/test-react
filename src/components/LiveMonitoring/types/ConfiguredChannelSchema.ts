@@ -62,6 +62,7 @@ export interface ChannelConfigApiResponse {
 export interface Option {
   value: string;
   label: string;
+  channelId?: string;
   chassisId?: string;
   cardId?: string;
   isSelectAll?: boolean;

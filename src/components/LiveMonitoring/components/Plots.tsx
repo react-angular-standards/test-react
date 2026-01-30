@@ -103,15 +103,14 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
     const handleLegendClick = useCallback(
       (channelIdOrName: string, chartRef: any) => {
-        // Extract numeric ID if it contains " - " separator
-        const numericId = channelIdOrName.includes(" - ")
-          ? channelIdOrName.split(" - ")[0]
-          : channelIdOrName;
+        // Use channelId directly (no splitting needed)
+        const channelId = channelIdOrName;
 
-        if (activePlotChannelsRef.current[numericId]) {
+        if (activePlotChannelsRef.current[channelId]) {
           // Toggle visibility
-          const currentVisibility = activePlotChannelsRef.current[numericId].visible;
-          activePlotChannelsRef.current[numericId].visible = !currentVisibility;
+          const currentVisibility =
+            activePlotChannelsRef.current[channelId].visible;
+          activePlotChannelsRef.current[channelId].visible = !currentVisibility;
 
           // Force chart re-render
           if (chartRef?.render) {
@@ -158,23 +157,21 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     ]);
 
     const handlePlotChannelSelect = useCallback(
-      (selectedChannels: string[]) => {
-        selectedChannels.forEach((channel) => {
-          // Extract numeric ID from "channelId - channelName" format
-          const numericId = channel.split(" - ")[0];
-          const channelName = `${channel}`;
-          const channelInfo = channelIdToPlotInfoRef.current[numericId];
+      (selectedChannelIds: string[]) => {
+        // Use channelIdToPlotInfoRef directly - no splitting needed
+        selectedChannelIds.forEach((channelId) => {
+          const channelInfo = channelIdToPlotInfoRef.current[channelId];
 
           if (!channelInfo) {
-            console.warn("Channel info not found for:", numericId, channel);
+            console.warn("Channel info not found for:", channelId);
             return;
           }
 
           const axisIndex = channelInfo.yAxisIndex;
-          if (!activePlotChannelsRef.current[numericId]) {
-            activePlotChannelsRef.current[numericId] = {
+          if (!activePlotChannelsRef.current[channelId]) {
+            activePlotChannelsRef.current[channelId] = {
               type: "line",
-              name: channelName,
+              name: channelInfo.label,
               showInLegend: enableChartLegend,
               visible: true,
               axisYIndex: axisIndex,
@@ -185,19 +182,27 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           }
         });
 
+        // Get labels for comparison with existing channel groups
+        const selectedLabels = selectedChannelIds.map(
+          (id) => channelIdToPlotInfoRef.current[id]?.label || id,
+        );
         const assignedChannels = channelGroups.flatMap(
           (group) => group.channels,
         );
 
         setAvailableChannels((prev: string[]) => {
-          console.log("selectedChannels", selectedChannels);
-          const newAvailable = prev.filter((ch) =>
-            selectedChannels.includes(ch),
-          );
-          const newChannels = selectedChannels.filter((ch) => {
-            const numericId = ch.split(" - ")[0];
-            channelChart.current[numericId] = "main";
-            return !assignedChannels.includes(ch) && !newAvailable.includes(ch);
+          console.log("selectedChannelIds", selectedChannelIds);
+          const newAvailable = prev.filter((ch) => selectedLabels.includes(ch));
+          const newChannels = selectedLabels.filter((label) => {
+            const channelId = selectedChannelIds.find(
+              (id) => channelIdToPlotInfoRef.current[id]?.label === label,
+            );
+            if (channelId) {
+              channelChart.current[channelId] = "main";
+            }
+            return (
+              !assignedChannels.includes(label) && !newAvailable.includes(label)
+            );
           });
 
           return [...newAvailable, ...newChannels].sort((a, b) =>
@@ -208,12 +213,17 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         setChannelGroups((prevGroups: ChannelGroup[]) => {
           const newGroups = prevGroups.map((group) => ({
             ...group,
-            channels: group.channels.filter((ch) => {
-              const res = selectedChannels.includes(ch);
+            channels: group.channels.filter((label) => {
+              const res = selectedLabels.includes(label);
 
               if (res) {
-                const numericId = ch.split(" - ")[0];
-                channelChart.current[numericId] = group.id;
+                // Find channelId from label
+                const channelId = selectedChannelIds.find(
+                  (id) => channelIdToPlotInfoRef.current[id]?.label === label,
+                );
+                if (channelId) {
+                  channelChart.current[channelId] = group.id;
+                }
               }
               return res;
             }),
@@ -349,11 +359,14 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
           // First pass: create Y-axes for all channels with channelInfo
           for (let i = 0; i < channels.length; i++) {
-            const channelId = channels[i];
-            const numericId = channelId.includes(" - ")
-              ? channelId.split(" - ")[0]
-              : channelId;
-            const channelInfo = channelIdToPlotInfoRef.current[numericId];
+            const channelLabel = channels[i];
+            // Find channelId from label
+            const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
+              (id) =>
+                channelIdToPlotInfoRef.current[id]?.label === channelLabel,
+            );
+            if (!channelId) continue;
+            const channelInfo = channelIdToPlotInfoRef.current[channelId];
 
             if (channelInfo) {
               const unit = channelInfo.unit || "Value";
@@ -391,12 +404,15 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
           // Second pass: add data to dataArray with correct axis assignment
           for (let i = 0; i < channels.length; i++) {
-            const channelId = channels[i];
-            const numericId = channelId.includes(" - ")
-              ? channelId.split(" - ")[0]
-              : channelId;
-            const data = activePlotChannelsRef.current[numericId];
-            const channelInfo = channelIdToPlotInfoRef.current[numericId];
+            const channelLabel = channels[i];
+            // Find channelId from label
+            const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
+              (id) =>
+                channelIdToPlotInfoRef.current[id]?.label === channelLabel,
+            );
+            if (!channelId) continue;
+            const data = activePlotChannelsRef.current[channelId];
+            const channelInfo = channelIdToPlotInfoRef.current[channelId];
 
             if (data !== undefined && channelInfo) {
               const unit = channelInfo.unit || "Value";
@@ -441,18 +457,19 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                   cursor: "pointer",
                   fontSize: 16,
                   itemclick: ((e: any) => {
-                    const channelName = e.dataSeries.name;
-                    const numericId = channelName.includes(" - ")
-                      ? channelName.split(" - ")[0]
-                      : channelName;
+                    const channelLabel = e.dataSeries.name;
+                    // Find channelId from label
+                    const channelId = Object.keys(
+                      channelIdToPlotInfoRef.current,
+                    ).find(
+                      (id) =>
+                        channelIdToPlotInfoRef.current[id]?.label ===
+                        channelLabel,
+                    );
 
-                    if (activePlotChannelsRef.current[numericId]) {
-                      // Toggle visibility and update the chart
-                      if (typeof e.dataSeries.visible === "undefined" || e.dataSeries.visible) {
-                        e.dataSeries.visible = false;
-                      } else {
-                        e.dataSeries.visible = true;
-                      }
+                    if (channelId && activePlotChannelsRef.current[channelId]) {
+                      // Toggle visibility
+                      e.dataSeries.visible = !e.dataSeries.visible;
                       e.chart.render();
                     }
 
@@ -533,36 +550,45 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           return;
         }
 
-        const channelId = result.draggableId;
-        const numericId = channelId.split(" - ")[0];
-        channelChart.current[numericId] =
-          destId === "available-channels" ? "main" : destId;
+        const channelLabel = result.draggableId;
+        // Find channelId from label
+        const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
+          (id) => channelIdToPlotInfoRef.current[id]?.label === channelLabel,
+        );
+        if (channelId) {
+          channelChart.current[channelId] =
+            destId === "available-channels" ? "main" : destId;
+        }
         setChannelGroups((prevGroups: ChannelGroup[]) => {
           if (sourceId === "available-channels") {
             setAvailableChannels((prev: string[]) =>
-              prev.filter((ch) => ch !== channelId),
+              prev.filter((ch) => ch !== channelLabel),
             );
-            return addChannelToTargetGroup(prevGroups, channelId, destId);
+            return addChannelToTargetGroup(prevGroups, channelLabel, destId);
           } else if (destId === "available-channels") {
             setAvailableChannels((prev: string[]) =>
-              [...prev, channelId].sort((a, b) => a.localeCompare(b)),
+              [...prev, channelLabel].sort((a, b) => a.localeCompare(b)),
             );
             return deleteChannelFromSourceGroup(
               prevGroups,
-              channelId,
+              channelLabel,
               sourceId,
             );
           } else {
             const newGroups = addChannelToTargetGroup(
               prevGroups,
-              channelId,
+              channelLabel,
               destId,
             );
-            return deleteChannelFromSourceGroup(newGroups, channelId, sourceId);
+            return deleteChannelFromSourceGroup(
+              newGroups,
+              channelLabel,
+              sourceId,
+            );
           }
         });
       },
-      [setAvailableChannels, setChannelGroups],
+      [channelIdToPlotInfoRef, setAvailableChannels, setChannelGroups],
     );
 
     const handleResizeMove = useCallback(
@@ -681,12 +707,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       if (selectedGroup === groupId) setSelectedGroup(null);
     };
 
-    const updateChartTitle = useCallback(
-      (groupId: string, newName: string) => {
-        // Title removed - no longer updating chart title
-      },
-      [],
-    );
+    const updateChartTitle = useCallback((groupId: string, newName: string) => {
+      // Title removed - no longer updating chart title
+    }, []);
 
     const updateGroup = (groupId: string, newName: string) => {
       setChannelGroups((prevGroups: ChannelGroup[]) => {
@@ -731,7 +754,10 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             )}
           </div>
           <div className={showChannelSection ? "col-9" : "col-12"} ref={divRef}>
-            <div className="row" style={{ marginBottom: "10px", paddingLeft: "20px" }}>
+            <div
+              className="row"
+              style={{ marginBottom: "10px", paddingLeft: "20px" }}
+            >
               <div className="col-12">
                 <Button
                   variant={viewMode === "chart" ? "contained" : "outlined"}
@@ -753,96 +779,96 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             {viewMode === "chart" && (
               <div className="row plot-margin">
                 <GridLayout
-                className="layout"
-                layout={gridLayout}
-                cols={12}
-                rowHeight={window.innerHeight * 0.11}
-                width={Math.round(
-                  (window.innerWidth - (drawerOpenState ? 240 : 65)) *
-                    (showChannelSection ? 0.73 : 0.985),
-                )}
-                isDraggable={true}
-                isResizable={false}
-                draggableHandle=".draggable-handle"
-                onLayoutChange={(newLayout: LayoutItems[]) => {
-                  setChartOptions((options) => {
-                    const sortedOptions = handleLayoutChange(
-                      newLayout,
-                      options,
-                      showChannelSection,
-                    );
-                    return sortedOptions;
-                  });
-                }}
-              >
-                {chartOptions.map((chart) => {
-                  return (
-                    <div className="chart-container" key={chart.id}>
-                      <div className="plot-data-container">
-                        <Tooltip
-                          title={
-                            isPlotPausedForAnalysis
-                              ? "Resume Monitoring"
-                              : "Pause Monitoring"
-                          }
-                        >
-                          <span
-                            className="plot-pause-handle"
-                            onClick={handlePauseForAnalysis}
+                  className="layout"
+                  layout={gridLayout}
+                  cols={12}
+                  rowHeight={window.innerHeight * 0.11}
+                  width={Math.round(
+                    (window.innerWidth - (drawerOpenState ? 240 : 65)) *
+                      (showChannelSection ? 0.73 : 0.985),
+                  )}
+                  isDraggable={true}
+                  isResizable={false}
+                  draggableHandle=".draggable-handle"
+                  onLayoutChange={(newLayout: LayoutItems[]) => {
+                    setChartOptions((options) => {
+                      const sortedOptions = handleLayoutChange(
+                        newLayout,
+                        options,
+                        showChannelSection,
+                      );
+                      return sortedOptions;
+                    });
+                  }}
+                >
+                  {chartOptions.map((chart) => {
+                    return (
+                      <div className="chart-container" key={chart.id}>
+                        <div className="plot-data-container">
+                          <Tooltip
+                            title={
+                              isPlotPausedForAnalysis
+                                ? "Resume Monitoring"
+                                : "Pause Monitoring"
+                            }
                           >
-                            {(isPlotPausedForAnalysis && (
-                              <PlayCircleOutlineIcon
-                                fontSize="medium"
-                                color="primary"
-                              />
-                            )) || (
-                              <PauseCircleOutlineIcon
-                                fontSize="medium"
-                                color="warning"
-                              />
-                            )}
-                          </span>
-                        </Tooltip>
-                        <CanvasJSReact.CanvasJSChart
-                          ref={(ref: ChartInstance) =>
-                            (chartRefs.current[chart.id] = ref)
-                          }
-                          options={chart.options}
-                        />
-                        {isPlotPausedForAnalysis && (
-                          <span className="time-range-handle">
-                            <CustomSlider
-                              id={chart.id}
-                              initValue={[
-                                recordedDataTimeRangeRef.current[1] - 5000,
-                                recordedDataTimeRangeRef.current[1],
-                              ]}
-                              range={recordedDataTimeRangeRef.current}
-                              onChange={updatePlotsWithRecordedData}
-                            />
-                          </span>
-                        )}
-                        <span
-                          className="resize-handle"
-                          onMouseDown={(e) =>
-                            handleResizeStart(
-                              e,
-                              chart.id,
-                              chart.width,
-                              chart.height,
-                            )
-                          }
-                        >
-                          <Tooltip title="Resize">
-                            <TabIcon size={22} />
+                            <span
+                              className="plot-pause-handle"
+                              onClick={handlePauseForAnalysis}
+                            >
+                              {(isPlotPausedForAnalysis && (
+                                <PlayCircleOutlineIcon
+                                  fontSize="medium"
+                                  color="primary"
+                                />
+                              )) || (
+                                <PauseCircleOutlineIcon
+                                  fontSize="medium"
+                                  color="warning"
+                                />
+                              )}
+                            </span>
                           </Tooltip>
-                        </span>
+                          <CanvasJSReact.CanvasJSChart
+                            ref={(ref: ChartInstance) =>
+                              (chartRefs.current[chart.id] = ref)
+                            }
+                            options={chart.options}
+                          />
+                          {isPlotPausedForAnalysis && (
+                            <span className="time-range-handle">
+                              <CustomSlider
+                                id={chart.id}
+                                initValue={[
+                                  recordedDataTimeRangeRef.current[1] - 5000,
+                                  recordedDataTimeRangeRef.current[1],
+                                ]}
+                                range={recordedDataTimeRangeRef.current}
+                                onChange={updatePlotsWithRecordedData}
+                              />
+                            </span>
+                          )}
+                          <span
+                            className="resize-handle"
+                            onMouseDown={(e) =>
+                              handleResizeStart(
+                                e,
+                                chart.id,
+                                chart.width,
+                                chart.height,
+                              )
+                            }
+                          >
+                            <Tooltip title="Resize">
+                              <TabIcon size={22} />
+                            </Tooltip>
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </GridLayout>
-            </div>
+                    );
+                  })}
+                </GridLayout>
+              </div>
             )}
             {viewMode === "table" && (
               <div className="row plot-margin">
@@ -851,7 +877,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     ref={dataTableRef}
                     selectedChannels={[
                       ...availableChannels,
-                      ...(channelGroups?.flatMap(group => group.channels) || [])
+                      ...(channelGroups?.flatMap((group) => group.channels) ||
+                        []),
                     ]}
                   />
                 </div>
