@@ -44,6 +44,7 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
     connectionState,
     setIsStreaming,
     sendDynamicChannelRequest,
+    setTriggerChannelSync,
   } = useLiveMonitoringContext();
   const { session } = useAuth();
 
@@ -77,6 +78,9 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
 
       setIsStreaming(true);
       sendDynamicChannelRequest(session?.name || "Invalid User");
+
+      // Trigger sync to notify Plots component
+      setTriggerChannelSync((prev) => !prev);
     },
     [
       activePlotChannelsRef,
@@ -84,6 +88,7 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
       setIsStreaming,
       sendDynamicChannelRequest,
       session,
+      setTriggerChannelSync,
     ],
   );
 
@@ -144,20 +149,41 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
   }, [updateTableData]);
 
   return (
-    <Box sx={{ width: "100%", p: 3 }}>
-      <Box sx={{ mb: 3 }}>
-        <CascadingMultiSelect
-          onChannelSelect={handleChannelSelect}
-          connectionStatus={connectionState}
-          onRecordCall={handleRecordCall}
-        />
-      </Box>
+    <div style={{ width: "100%", padding: "20px" }}>
+      {/* Channel Selection Section - Matching Plots styling */}
+      <div
+        className="align-items-center"
+        style={{
+          display: "contents",
+          position: "relative",
+          zIndex: 1100,
+        }}
+      >
+        <div
+          className="align-items-center"
+          style={{
+            display: "contents",
+            marginBottom: "20px",
+          }}
+        >
+          <CascadingMultiSelect
+            onChannelSelect={handleChannelSelect}
+            connectionStatus={connectionState}
+            onRecordCall={handleRecordCall}
+          />
+        </div>
+      </div>
+
+      {/* Data Table Section */}
       <Paper
         elevation={0}
         sx={{
           border: "1px solid #dee2e6",
           borderRadius: "8px",
           overflow: "hidden",
+          marginTop: "20px",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <TableContainer sx={{ maxHeight: 500 }}>
@@ -247,7 +273,7 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
           </Box>
         )}
       </Paper>
-    </Box>
+    </div>
   );
 };
 

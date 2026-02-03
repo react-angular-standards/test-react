@@ -48,6 +48,14 @@ const customStyles = {
       color: "#1976d2",
     },
   }),
+  menu: (provided: any) => ({
+    ...provided,
+    zIndex: 9999,
+  }),
+  menuPortal: (provided: any) => ({
+    ...provided,
+    zIndex: 9999,
+  }),
 };
 
 interface CascadingMultiSelectProps {
@@ -264,6 +272,8 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
             value={selectedOptions}
             onChange={handleChannelChange as any}
             styles={customStyles}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
             placeholder={
               loading
                 ? "Loading channels..."
