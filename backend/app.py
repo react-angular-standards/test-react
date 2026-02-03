@@ -102,6 +102,41 @@ app = FastAPI(
 # Add SessionMiddleware
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
 
+# Manual CORS middleware to handle OPTIONS preflight BEFORE FastAPI CORS
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+
+class ManualCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Get origin from request
+        origin = request.headers.get("origin", "*")
+
+        # Handle OPTIONS preflight requests immediately
+        if request.method == "OPTIONS":
+            logger.info(f"🔄 Manual CORS: OPTIONS {request.url.path} from {origin}")
+            return Response(
+                content="",
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "86400",
+                },
+            )
+
+        # For non-OPTIONS requests, continue normally but add CORS headers to response
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+
+# Add manual CORS middleware FIRST (before FastAPI CORS)
+app.add_middleware(ManualCORSMiddleware)
+
 # Add CORS middleware - Automatically allow common localhost and detect domains
 allowed_origins = []
 
@@ -141,8 +176,19 @@ cors_config = {
 if not IS_PRODUCTION:
     # In development, be more permissive with CORS
     cors_config["allow_origin_regex"] = r"http://.*"  # Allow any HTTP origin in dev
+    logger.info(f"CORS: Development mode - Allowing all HTTP origins")
 else:
-    cors_config["allow_origins"] = allowed_origins
+    # Production: Log what origins are allowed
+    if allowed_origins:
+        cors_config["allow_origins"] = allowed_origins
+        logger.info(f"CORS: Production mode - Allowed origins: {allowed_origins}")
+    else:
+        # TEMPORARY FIX: If no origins configured, allow all HTTPS in production for debugging
+        cors_config["allow_origin_regex"] = r"https://.*"
+        logger.warning(
+            f"⚠️  CORS: No FRONTEND_URL set! Temporarily allowing all HTTPS origins"
+        )
+        logger.warning(f"⚠️  Set FRONTEND_URL in .env for proper security")
 
 app.add_middleware(CORSMiddleware, **cors_config)
 
@@ -951,6 +997,26 @@ async def auth_userinfo(current_user: Dict[str, Any] = Depends(get_current_user)
     }
 
 
+# OPTIONS handler now handled by ManualCORSMiddleware above
+# Keeping this for fallback but middleware should catch it first
+@app.options("/auth/session")
+async def auth_session_preflight(request: Request):
+    """Fallback CORS preflight handler (middleware should handle this)"""
+    origin = request.headers.get("origin", "*")
+    logger.info(f"🔄 Fallback OPTIONS handler - Origin: {origin}")
+    return JSONResponse(
+        content={"status": "ok"},
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
+
+
 @app.get("/auth/session")
 async def auth_session(request: Request):
     """Get current session info with role"""
@@ -959,11 +1025,13 @@ async def auth_session(request: Request):
     # Enhanced logging for debugging
     client_host = request.client.host if request.client else "unknown"
     request_host = request.headers.get("host", "unknown")
+    origin = request.headers.get("origin", "none")
     all_cookies = list(request.cookies.keys())
 
-    logger.info(f"📋 Session check")
+    logger.info(f"📋 GET /auth/session")
     logger.info(f"   Client: {client_host}")
     logger.info(f"   Host: {request_host}")
+    logger.info(f"   Origin: {origin}")
     logger.info(f"   Cookie present: {bool(token)}")
     logger.info(f"   All cookies: {all_cookies}")
 
@@ -1419,4 +1487,12 @@ async def shutdown_event():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=PORT,
+        timeout_keep_alive=75,
+        timeout_graceful_shutdown=30,
+        limit_concurrency=1000,
+        limit_max_requests=10000,
+    )
