@@ -53,6 +53,7 @@ interface PlotState {
   primaryGrpName: string;
   selectedSystemIndex: React.MutableRefObject<string>;
   tirggerChart: boolean;
+  triggerChannelSync: boolean;
   setActiveDiscreteChannelGroup: React.Dispatch<
     React.SetStateAction<Record<string, Channel[]>>
   >;
@@ -71,6 +72,7 @@ interface PlotState {
   ) => void;
   sendDynamicChannelRequest: (userName: string) => void;
   setTriggerChart: React.Dispatch<React.SetStateAction<boolean>>;
+  setTriggerChannelSync: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const PlotContext = createContext<PlotState | undefined>(undefined);
@@ -104,6 +106,7 @@ export const LiveMonitoringProvider: React.FC<{
   const [connectionState, setConnectionState] = useState<ConnectionType>("Off");
   const [enableChartLegend, setEnableChartLegend] = useState<boolean>(true);
   const [tirggerChart, setTriggerChart] = useState<boolean>(false);
+  const [triggerChannelSync, setTriggerChannelSync] = useState<boolean>(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlotPausedForAnalysis, setIsPlotPausedForAnalysis] = useState(false);
@@ -363,13 +366,14 @@ export const LiveMonitoringProvider: React.FC<{
         chartOptions,
         channelIdToPlotInfoRef,
         primaryGrpName,
+        selectedSystemIndex,
         tirggerChart,
+        triggerChannelSync,
         setActiveDiscreteChannelGroup,
         setBufferTimeWindow,
         setConnectionState,
         setEnableChartLegend,
         setPrimaryGrpName,
-        selectedSystemIndex,
         setIsStreaming,
         setIsRecording,
         setIsPlotPausedForAnalysis,
@@ -379,6 +383,7 @@ export const LiveMonitoringProvider: React.FC<{
         switchDataStreamWSConnection,
         sendDynamicChannelRequest,
         setTriggerChart,
+        setTriggerChannelSync,
       }}
     >
       {children}

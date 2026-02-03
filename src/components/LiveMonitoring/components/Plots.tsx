@@ -308,7 +308,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
     useEffect(() => {
       updateChartDataOption();
-    }, [enableChartLegend, channelGroups]);
+    }, [enableChartLegend, channelGroups, primaryGrpName]);
 
     useEffect(() => {
       const fullWidth = Math.round(
@@ -442,11 +442,22 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             gridThickness: 1,
           };
 
+          // Get the title for this chart
+          const chartTitle =
+            chart.id === "main"
+              ? primaryGrpName
+              : channelGroups?.find((group) => group.id === chart.id)?.name ||
+                "";
+
           return {
             ...chart,
             ...(chart.options && {
               options: {
                 ...chart.options,
+                title: {
+                  text: chartTitle,
+                  fontSize: 16,
+                },
                 legend: {
                   cursor: "pointer",
                   fontSize: 16,
@@ -462,8 +473,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     );
 
                     if (channelId && activePlotChannelsRef.current[channelId]) {
-                      // Toggle visibility
-                      e.dataSeries.visible = !e.dataSeries.visible;
+                      // Toggle visibility in both the chart and our ref
+                      const newVisibility = !e.dataSeries.visible;
+                      e.dataSeries.visible = newVisibility;
+                      activePlotChannelsRef.current[channelId].visible =
+                        newVisibility;
                       e.chart.render();
                     }
 
@@ -488,6 +502,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       handleLegendClick,
       setChartOptions,
       channelIdToPlotInfoRef,
+      primaryGrpName,
     ]);
 
     useImperativeHandle(
@@ -653,6 +668,10 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 ...(mainChart.options && {
                   options: {
                     ...mainChart.options,
+                    title: {
+                      text: newGroup.name,
+                      fontSize: 16,
+                    },
                     data: [],
                   },
                 }),
@@ -698,9 +717,30 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       if (selectedGroup === groupId) setSelectedGroup(null);
     };
 
-    const updateChartTitle = useCallback((groupId: string, newName: string) => {
-      // Title removed - no longer updating chart title
-    }, []);
+    const updateChartTitle = useCallback(
+      (groupId: string, newName: string) => {
+        setChartOptions((prevCharts) => {
+          return prevCharts.map((chart) => {
+            if (chart.id === groupId) {
+              return {
+                ...chart,
+                ...(chart.options && {
+                  options: {
+                    ...chart.options,
+                    title: {
+                      text: newName,
+                      fontSize: 16,
+                    },
+                  },
+                }),
+              };
+            }
+            return chart;
+          });
+        });
+      },
+      [setChartOptions],
+    );
 
     const updateGroup = (groupId: string, newName: string) => {
       setChannelGroups((prevGroups: ChannelGroup[]) => {

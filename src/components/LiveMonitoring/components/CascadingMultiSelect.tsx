@@ -70,6 +70,8 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     setAvailableChannels,
     setIsStreaming,
     sendDynamicChannelRequest,
+    triggerChannelSync,
+    setTriggerChannelSync,
   } = useLiveMonitoringContext();
   const { session } = useAuth();
   const isUpdateRecordingRequired = true;
@@ -186,6 +188,9 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     setIsStreaming(true);
     setIsChannelListChanged(false);
     sendDynamicChannelRequest(session?.name || "Invalid User");
+
+    // Trigger sync to notify other components
+    setTriggerChannelSync((prev) => !prev);
   }, [
     selectedOptions,
     updateChannelsToPlot,
@@ -195,6 +200,7 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
     setIsStreaming,
     sendDynamicChannelRequest,
     session,
+    setTriggerChannelSync,
   ]);
 
   useEffect(() => {
@@ -212,6 +218,14 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
       cleanUpSelectedChannels(availableOptionListToSelect);
     }
   }, [loading, availableOptionListToSelect, cleanUpSelectedChannels]);
+
+  // Sync selectedOptions when channel selection changes in other components
+  useEffect(() => {
+    if (connectionStatus !== "Off") {
+      const currentChannels = Object.values(channelIdToPlotInfoRef.current);
+      setSelectedOptions(currentChannels);
+    }
+  }, [triggerChannelSync, connectionStatus, channelIdToPlotInfoRef]);
 
   // Reset everything when connection is turned Off
   useEffect(() => {
