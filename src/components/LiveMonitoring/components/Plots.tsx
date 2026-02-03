@@ -54,6 +54,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       channelIdToPlotInfoRef,
       connectionState,
       primaryGrpName,
+      triggerChannelSync,
       setBufferTimeWindow,
       setEnableChartLegend,
       setPrimaryGrpName,
@@ -308,7 +309,40 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
     useEffect(() => {
       updateChartDataOption();
-    }, [enableChartLegend, channelGroups, primaryGrpName]);
+    }, [enableChartLegend, channelGroups, primaryGrpName, availableChannels]);
+
+    // Watch for channel sync from LiveDataTable and update available channels
+    useEffect(() => {
+      console.log(
+        "📊 Channel sync detected from LiveDataTable, syncing channels to plots...",
+      );
+
+      // Get all channels from channelIdToPlotInfoRef
+      const allChannelLabels = Object.values(
+        channelIdToPlotInfoRef.current,
+      ).map((info) => info.label);
+
+      // Filter out channels that are already in groups
+      const assignedChannels = channelGroups.flatMap((group) => group.channels);
+      const newAvailableChannels = allChannelLabels.filter(
+        (label) => !assignedChannels.includes(label),
+      );
+
+      // Update available channels - this will trigger updateChartDataOption via the effect above
+      setAvailableChannels((prev) => {
+        const prevSet = new Set(prev);
+        const newSet = new Set(newAvailableChannels);
+        // Only update if there's a difference
+        if (
+          prev.length !== newAvailableChannels.length ||
+          !prev.every((ch) => newSet.has(ch))
+        ) {
+          console.log("📊 Updating availableChannels:", newAvailableChannels);
+          return newAvailableChannels.sort((a, b) => a.localeCompare(b));
+        }
+        return prev;
+      });
+    }, [triggerChannelSync, channelGroups, setAvailableChannels]);
 
     useEffect(() => {
       const fullWidth = Math.round(

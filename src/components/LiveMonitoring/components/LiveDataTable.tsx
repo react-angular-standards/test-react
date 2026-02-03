@@ -13,6 +13,7 @@ import Typography from "@mui/material/Typography";
 import { useLiveMonitoringContext } from "../context/LiveMonitorContext";
 import CascadingMultiSelect from "./CascadingMultiSelect";
 import { useAuth } from "../../../AuthProvider";
+import { customPlotsStyles } from "../../Widgets/CustomStyle";
 
 interface LiveDataTableProps {
   selectedChannels?: string[];
@@ -149,131 +150,134 @@ const LiveDataTable: React.FC<LiveDataTableProps> = (props) => {
   }, [updateTableData]);
 
   return (
-    <div style={{ width: "100%", padding: "20px" }}>
-      {/* Channel Selection Section - Matching Plots styling */}
-      <div
-        className="align-items-center"
-        style={{
-          display: "contents",
-          position: "relative",
-          zIndex: 1100,
-        }}
-      >
-        <div
-          className="align-items-center"
-          style={{
-            display: "contents",
-            marginBottom: "20px",
-          }}
-        >
-          <CascadingMultiSelect
-            onChannelSelect={handleChannelSelect}
-            connectionStatus={connectionState}
-            onRecordCall={handleRecordCall}
-          />
-        </div>
-      </div>
-
-      {/* Data Table Section */}
-      <Paper
-        elevation={0}
-        sx={{
-          border: "1px solid #dee2e6",
-          borderRadius: "8px",
-          overflow: "hidden",
-          marginTop: "20px",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <TableContainer sx={{ maxHeight: 500 }}>
-          <Table stickyHeader size="small" aria-label="live data table">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={headerCellStyle}>Timestamp</TableCell>
-                <TableCell sx={headerCellStyle}>Channel ID</TableCell>
-                <TableCell align="right" sx={headerCellStyle}>
-                  Value
-                </TableCell>
-                <TableCell sx={headerCellStyle}>Unit</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tableData.length > 0 ? (
-                tableData.map((row, index) => (
-                  <TableRow
-                    key={`${row.channelId}-${row.timestamp.getTime()}-${index}`}
-                    sx={{
-                      "&:hover": { backgroundColor: "#f8f9fa" },
-                      "&:nth-of-type(even)": { backgroundColor: "#fafbfc" },
-                    }}
-                  >
-                    <TableCell
-                      sx={{ ...bodyCellStyle, fontFamily: "monospace" }}
-                    >
-                      {row.timestamp.toLocaleTimeString()}.
-                      {String(row.timestamp.getMilliseconds()).padStart(3, "0")}
-                    </TableCell>
-                    <TableCell sx={{ ...bodyCellStyle, color: "#495057" }}>
-                      {row.channelId}
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        ...bodyCellStyle,
-                        fontWeight: 600,
-                        fontFamily: "monospace",
-                        color: "#212529",
-                      }}
-                    >
-                      {typeof row.value === "number"
-                        ? row.value.toFixed(4)
-                        : row.value}
-                    </TableCell>
-                    <TableCell sx={{ ...bodyCellStyle, color: "#6c757d" }}>
-                      {row.unit}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    align="center"
-                    sx={{
-                      padding: "48px 16px",
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      No data available. Select channels and start streaming.
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {tableData.length > 0 && (
-          <Box
-            sx={{
-              p: 1.5,
-              borderTop: "1px solid #dee2e6",
-              backgroundColor: "#f8f9fa",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+    <>
+      <style>{customPlotsStyles}</style>
+      <div style={{ width: "100%", padding: "20px" }}>
+        {/* Channel Selection Section - Matching PlotGroupSelection styling */}
+        <div className="channels-section bg-custom-green rounded-lg shadow round-border p-3 mb-3">
+          <div className="dashboard-header mb-3">
+            <h6 className="h6 font-weight-bold text-muted">
+              Live Data Table Settings
+            </h6>
+          </div>
+          <div
+            className="align-items-center"
+            style={{
+              position: "relative",
+              zIndex: 1100,
             }}
           >
-            <Typography variant="caption" color="text.secondary">
-              Showing latest values
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {tableData.length} channels
-            </Typography>
-          </Box>
-        )}
-      </Paper>
-    </div>
+            <CascadingMultiSelect
+              onChannelSelect={handleChannelSelect}
+              connectionStatus={connectionState}
+              onRecordCall={handleRecordCall}
+            />
+          </div>
+        </div>
+
+        {/* Data Table Section */}
+        <Paper
+          elevation={0}
+          sx={{
+            border: "1px solid #dee2e6",
+            borderRadius: "8px",
+            overflow: "hidden",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <TableContainer sx={{ maxHeight: 500 }}>
+            <Table stickyHeader size="small" aria-label="live data table">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={headerCellStyle}>Timestamp</TableCell>
+                  <TableCell sx={headerCellStyle}>Channel ID</TableCell>
+                  <TableCell align="right" sx={headerCellStyle}>
+                    Value
+                  </TableCell>
+                  <TableCell sx={headerCellStyle}>Unit</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tableData.length > 0 ? (
+                  tableData.map((row, index) => (
+                    <TableRow
+                      key={`${row.channelId}-${row.timestamp.getTime()}-${index}`}
+                      sx={{
+                        "&:hover": { backgroundColor: "#f8f9fa" },
+                        "&:nth-of-type(even)": { backgroundColor: "#fafbfc" },
+                      }}
+                    >
+                      <TableCell
+                        sx={{ ...bodyCellStyle, fontFamily: "monospace" }}
+                      >
+                        {row.timestamp.toLocaleTimeString()}.
+                        {String(row.timestamp.getMilliseconds()).padStart(
+                          3,
+                          "0",
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ ...bodyCellStyle, color: "#495057" }}>
+                        {row.channelId}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          ...bodyCellStyle,
+                          fontWeight: 600,
+                          fontFamily: "monospace",
+                          color: "#212529",
+                        }}
+                      >
+                        {typeof row.value === "number"
+                          ? row.value.toFixed(4)
+                          : row.value}
+                      </TableCell>
+                      <TableCell sx={{ ...bodyCellStyle, color: "#6c757d" }}>
+                        {row.unit}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      align="center"
+                      sx={{
+                        padding: "48px 16px",
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        No data available. Select channels and start streaming.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {tableData.length > 0 && (
+            <Box
+              sx={{
+                p: 1.5,
+                borderTop: "1px solid #dee2e6",
+                backgroundColor: "#f8f9fa",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Showing latest values
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {tableData.length} channels
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </div>
+    </>
   );
 };
 
