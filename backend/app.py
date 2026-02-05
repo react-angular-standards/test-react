@@ -99,9 +99,6 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# Add SessionMiddleware
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
-
 # Manual CORS middleware to handle OPTIONS preflight BEFORE FastAPI CORS
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -109,33 +106,50 @@ from starlette.responses import Response
 
 class ManualCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        # Get origin from request
-        origin = request.headers.get("origin", "*")
+        try:
+            # Get origin from request
+            origin = request.headers.get("origin", "*")
 
-        # Handle OPTIONS preflight requests immediately
-        if request.method == "OPTIONS":
-            logger.info(f"🔄 Manual CORS: OPTIONS {request.url.path} from {origin}")
-            return Response(
-                content="",
-                status_code=200,
+            # Handle OPTIONS preflight requests immediately
+            if request.method == "OPTIONS":
+                logger.info(f"🔄 Manual CORS: OPTIONS {request.url.path} from {origin}")
+                logger.info(f"   Headers: {dict(request.headers)}")
+                return Response(
+                    content="",
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "86400",
+                    },
+                )
+
+            # For non-OPTIONS requests, continue normally but add CORS headers to response
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+        except Exception as e:
+            logger.error(f"❌ CORS Middleware Error: {e}")
+            logger.error(f"   Method: {request.method}, Path: {request.url.path}")
+            # Return error response with CORS headers
+            return JSONResponse(
+                content={"error": str(e)},
+                status_code=500,
                 headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+                    "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
                     "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Max-Age": "86400",
                 },
             )
 
-        # For non-OPTIONS requests, continue normally but add CORS headers to response
-        response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
 
-
-# Add manual CORS middleware FIRST (before FastAPI CORS)
+# Add manual CORS middleware FIRST (before SessionMiddleware)
 app.add_middleware(ManualCORSMiddleware)
+
+# Add SessionMiddleware AFTER CORS middleware
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
 
 # Add CORS middleware - Automatically allow common localhost and detect domains
 allowed_origins = []
