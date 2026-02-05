@@ -99,7 +99,56 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# Add SessionMiddleware
+# Manual CORS middleware to handle OPTIONS preflight BEFORE FastAPI CORS
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+
+class ManualCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        try:
+            # Get origin from request
+            origin = request.headers.get("origin", "*")
+
+            # Handle OPTIONS preflight requests immediately
+            if request.method == "OPTIONS":
+                logger.info(f"🔄 Manual CORS: OPTIONS {request.url.path} from {origin}")
+                logger.info(f"   Headers: {dict(request.headers)}")
+                return Response(
+                    content="",
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "86400",
+                    },
+                )
+
+            # For non-OPTIONS requests, continue normally but add CORS headers to response
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+        except Exception as e:
+            logger.error(f"❌ CORS Middleware Error: {e}")
+            logger.error(f"   Method: {request.method}, Path: {request.url.path}")
+            # Return error response with CORS headers
+            return JSONResponse(
+                content={"error": str(e)},
+                status_code=500,
+                headers={
+                    "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+
+
+# Add manual CORS middleware FIRST (before SessionMiddleware)
+app.add_middleware(ManualCORSMiddleware)
+
+# Add SessionMiddleware AFTER CORS middleware
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
 
 # Add CORS middleware - Automatically allow common localhost and detect domains
@@ -141,8 +190,19 @@ cors_config = {
 if not IS_PRODUCTION:
     # In development, be more permissive with CORS
     cors_config["allow_origin_regex"] = r"http://.*"  # Allow any HTTP origin in dev
+    logger.info(f"CORS: Development mode - Allowing all HTTP origins")
 else:
-    cors_config["allow_origins"] = allowed_origins
+    # Production: Log what origins are allowed
+    if allowed_origins:
+        cors_config["allow_origins"] = allowed_origins
+        logger.info(f"CORS: Production mode - Allowed origins: {allowed_origins}")
+    else:
+        # TEMPORARY FIX: If no origins configured, allow all HTTPS in production for debugging
+        cors_config["allow_origin_regex"] = r"https://.*"
+        logger.warning(
+            f"⚠️  CORS: No FRONTEND_URL set! Temporarily allowing all HTTPS origins"
+        )
+        logger.warning(f"⚠️  Set FRONTEND_URL in .env for proper security")
 
 app.add_middleware(CORSMiddleware, **cors_config)
 
@@ -418,11 +478,16 @@ def set_auth_cookie(response, token: str, frontend_url: Optional[str] = None):
 
 async def get_current_user(request: Request) -> Dict[str, Any]:
     """Dependency to get current authenticated user"""
+    logger.info(f"🔍 get_current_user called for path: {request.url.path}")
+    logger.info(f"🍪 Available cookies: {list(request.cookies.keys())}")
+
     token = request.cookies.get("auth_session")
 
     if not token:
-        logger.warning("No auth_session cookie found")
+        logger.warning("❌ No auth_session cookie found")
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    logger.info(f"✅ auth_session cookie found (length: {len(token)})")
 
     try:
         payload = jwt.decode(token, AUTH_SECRET)
@@ -430,31 +495,60 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
         user_info = payload.get("userInfo", {})
 
         if not user_info:
-            logger.warning("No user info in session token")
+            logger.warning("❌ No user info in session token")
             raise HTTPException(status_code=401, detail="No user info in session")
 
+        logger.info(
+            f"✅ User authenticated: {user_info.get('name')} (id: {user_info.get('sub')})"
+        )
         return user_info
     except Exception as e:
-        logger.error(f"Invalid session token: {e}")
+        logger.error(f"❌ Invalid session token: {type(e).__name__}: {e}")
+        import traceback
+
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=401, detail="Invalid session")
 
 
 async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Dependency to require admin role - extracts role from session token"""
-    user_role = current_user.get("role")
+    """Dependency to require admin role"""
+    logger.info(f"🔐 require_admin called for user: {current_user}")
 
-    if not user_role:
-        logger.warning(
-            f"No role found in session token for user: {current_user.get('sub')}"
-        )
-        raise HTTPException(status_code=401, detail="Invalid user session")
+    user_id = current_user.get("sub")
+    user_email = current_user.get("email")
 
-    if user_role != UserRole.ADMIN:
-        logger.warning(
-            f"Access denied: User {current_user.get('sub')} has role '{user_role}', requires '{UserRole.ADMIN}'"
+    user_mgr = get_user_manager()
+
+    # Try to lookup user by user_id first, then by email
+    db_user = None
+    lookup_method = None
+
+    if user_id:
+        db_user = user_mgr.get_user(user_id)
+        lookup_method = f"user_id: {user_id}"
+
+    if not db_user and user_email:
+        logger.info(f"⚠️ User not found by ID, trying email: {user_email}")
+        db_user = user_mgr.get_user_by_email(user_email)
+        lookup_method = f"email: {user_email}"
+
+    if not db_user:
+        logger.error(
+            f"❌ User not found in database. sub={user_id}, email={user_email}"
         )
+        raise HTTPException(status_code=401, detail="User not found in database")
+
+    # Check admin status
+    user_role = db_user.get("role")
+    is_admin = user_role == UserRole.ADMIN
+    logger.info(
+        f"👤 User ({lookup_method}) role: '{user_role}' -> is_admin: {is_admin}"
+    )
+
+    if not is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    logger.info(f"✅ Admin access granted for user ({lookup_method})")
     return current_user
 
 
@@ -894,7 +988,13 @@ async def callback(request: Request):
 
 @app.get("/auth/userinfo")
 async def auth_userinfo(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Get current user info with role from session token"""
+    """Get current user info with role"""
+    user_id = current_user.get("sub")
+
+    # Get user from Neo4j to get latest role
+    user_mgr = get_user_manager()
+    db_user = user_mgr.get_user(user_id) if user_id else None
+
     return {
         "id": current_user.get("sub"),
         "name": current_user.get("name"),
@@ -904,9 +1004,31 @@ async def auth_userinfo(current_user: Dict[str, Any] = Depends(get_current_user)
         "bemsid": current_user.get("bemsid"),
         "authMethod": current_user.get("auth_method"),
         "authenticatedAt": current_user.get("authenticated_at"),
-        "role": current_user.get("role", UserRole.NON_ADMIN),
+        "role": db_user.get("role")
+        if db_user
+        else current_user.get("role", UserRole.NON_ADMIN),
         "profile": current_user,
     }
+
+
+# OPTIONS handler now handled by ManualCORSMiddleware above
+# Keeping this for fallback but middleware should catch it first
+@app.options("/auth/session")
+async def auth_session_preflight(request: Request):
+    """Fallback CORS preflight handler (middleware should handle this)"""
+    origin = request.headers.get("origin", "*")
+    logger.info(f"🔄 Fallback OPTIONS handler - Origin: {origin}")
+    return JSONResponse(
+        content={"status": "ok"},
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
 
 
 @app.get("/auth/session")
@@ -917,11 +1039,13 @@ async def auth_session(request: Request):
     # Enhanced logging for debugging
     client_host = request.client.host if request.client else "unknown"
     request_host = request.headers.get("host", "unknown")
+    origin = request.headers.get("origin", "none")
     all_cookies = list(request.cookies.keys())
 
-    logger.info(f"📋 Session check")
+    logger.info(f"📋 GET /auth/session")
     logger.info(f"   Client: {client_host}")
     logger.info(f"   Host: {request_host}")
+    logger.info(f"   Origin: {origin}")
     logger.info(f"   Cookie present: {bool(token)}")
     logger.info(f"   All cookies: {all_cookies}")
 
@@ -956,7 +1080,11 @@ async def auth_session(request: Request):
             logger.warning("⚠️ No user info in session")
             return JSONResponse({"authenticated": False, "user": None})
 
-        # Role is already in session token, no DB query needed
+        # Get role from Neo4j
+        user_id = user_info.get("sub")
+        user_mgr = get_user_manager()
+        db_user = user_mgr.get_user(user_id) if user_id else None
+
         return JSONResponse(
             {
                 "authenticated": True,
@@ -969,7 +1097,9 @@ async def auth_session(request: Request):
                     "bemsid": user_info.get("bemsid"),
                     "authMethod": user_info.get("auth_method", "wsso"),
                     "authenticatedAt": user_info.get("authenticated_at"),
-                    "role": user_info.get("role", UserRole.NON_ADMIN),
+                    "role": db_user.get("role")
+                    if db_user
+                    else user_info.get("role", UserRole.NON_ADMIN),
                 },
                 "accessToken": payload.get("accessToken"),
                 "idToken": payload.get("idToken"),
@@ -1012,6 +1142,66 @@ async def auth_signout(request: Request):
 # ============================================================================
 # USER MANAGEMENT ROUTES (Admin Only)
 # ============================================================================
+
+
+@app.get("/api/debug/session")
+async def debug_session(request: Request):
+    """Debug endpoint to check session status (no auth required)"""
+    token = request.cookies.get("auth_session")
+
+    debug_info = {
+        "has_cookie": bool(token),
+        "cookies_received": list(request.cookies.keys()),
+        "client_host": request.client.host if request.client else None,
+        "request_host": request.headers.get("host"),
+        "origin": request.headers.get("origin"),
+        "referer": request.headers.get("referer"),
+    }
+
+    if not token:
+        debug_info["error"] = "No auth_session cookie found"
+        return JSONResponse(debug_info)
+
+    try:
+        payload = jwt.decode(token, AUTH_SECRET)
+        payload.validate()
+        user_info = payload.get("userInfo", {})
+
+        debug_info["token_valid"] = True
+        debug_info["user_id"] = user_info.get("sub")
+        debug_info["user_name"] = user_info.get("name")
+        debug_info["user_email"] = user_info.get("email")
+
+        # Check if user exists in DB
+        user_mgr = get_user_manager()
+
+        # Try by user_id first
+        db_user = (
+            user_mgr.get_user(user_info.get("sub")) if user_info.get("sub") else None
+        )
+        lookup_method = "user_id"
+
+        # If not found, try by email
+        if not db_user and user_info.get("email"):
+            db_user = user_mgr.get_user_by_email(user_info.get("email"))
+            lookup_method = "email"
+
+        if db_user:
+            debug_info["user_in_db"] = True
+            debug_info["lookup_method"] = lookup_method
+            debug_info["db_role"] = db_user.get("role")
+            debug_info["is_admin"] = db_user.get("role") == UserRole.ADMIN
+        else:
+            debug_info["user_in_db"] = False
+            debug_info["error"] = (
+                "User not found in database (tried both user_id and email)"
+            )
+
+    except Exception as e:
+        debug_info["token_valid"] = False
+        debug_info["error"] = str(e)
+
+    return JSONResponse(debug_info)
 
 
 @app.get("/api/users")
@@ -1160,21 +1350,32 @@ async def get_users_by_role(
 async def get_current_user_info(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Get current user information from session token"""
+    """Get current user information"""
+    user_id = current_user.get("sub")
+
+    # Get fresh data from Neo4j
+    user_mgr = get_user_manager()
+    db_user = user_mgr.get_user(user_id) if user_id else None
+
+    if db_user:
+        return JSONResponse({"success": True, "user": db_user})
+
     return JSONResponse({"success": True, "user": current_user})
 
 
 @app.get("/api/me/is-admin")
 async def check_is_admin(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Check if current user is admin - extracts from session token"""
-    user_role = current_user.get("role", UserRole.NON_ADMIN)
-    is_admin = user_role == UserRole.ADMIN
+    """Check if current user is admin"""
+    user_id = current_user.get("sub")
+
+    user_mgr = get_user_manager()
+    is_admin = user_mgr.is_admin(user_id) if user_id else False
 
     return JSONResponse(
         {
             "success": True,
             "isAdmin": is_admin,
-            "role": user_role,
+            "role": UserRole.ADMIN if is_admin else UserRole.NON_ADMIN,
         }
     )
 
@@ -1300,29 +1501,12 @@ async def shutdown_event():
 
 
 if __name__ == "__main__":
-    # SSL/TLS Configuration
-    ssl_keyfile = os.getenv("SSL_KEYFILE", "cert/key.pem")
-    ssl_certfile = os.getenv("SSL_CERTFILE", "cert/cert.pem")
-
-    # Check if SSL certificates exist
-    use_ssl = os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile)
-
-    if use_ssl:
-        logger.info(f"🔒 Starting server with HTTPS (SSL enabled)")
-        logger.info(f"   Certificate: {ssl_certfile}")
-        logger.info(f"   Key: {ssl_keyfile}")
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=PORT,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
-        )
-    else:
-        logger.warning(f"⚠️  SSL certificates not found. Starting without HTTPS")
-        logger.warning(f"   Expected key: {ssl_keyfile}")
-        logger.warning(f"   Expected cert: {ssl_certfile}")
-        logger.warning(
-            f"   To enable HTTPS, place your certificates in the 'cert' directory"
-        )
-        uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=PORT,
+        timeout_keep_alive=75,
+        timeout_graceful_shutdown=30,
+        limit_concurrency=1000,
+        limit_max_requests=10000,
+    )
