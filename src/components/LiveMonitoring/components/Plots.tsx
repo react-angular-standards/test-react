@@ -26,10 +26,7 @@ import { ChartInstance } from "../types/ChartSchema";
 import { useGridLayoutSettings } from "../../../hooks/useGridLayoutSettings";
 import { CustomSlider } from "../../Widgets/CustomSlider";
 import { UrlConstant } from "../../../util/UrlConstans";
-import {
-  useRecordedLiveData,
-  RecordedDataPoint,
-} from "../../../hooks/useRecordedLiveData";
+import { useRecordedLiveData } from "../../../hooks/useRecordedLiveData";
 import { PlotGroupSelection } from "./PlotGroupSelection";
 import {
   makeSeriesData,
@@ -466,16 +463,19 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
      * updatePlotsWithRecordedData (on slider scrub).
      */
     const applyRecordedData = useCallback(
-      (recordedData: RecordedDataPoint[] | null) => {
+      (recordedData: Array<{ [key: string]: string | number }> | null) => {
         // Clear existing live data first
         Object.keys(activePlotChannelsRef.current).forEach((channel) => {
           activePlotChannelsRef.current[channel].dataPoints = [];
         });
         // Push fetched points into the correct channel buffers
         recordedData?.forEach((data) => {
-          activePlotChannelsRef.current[data.ChannelId]?.dataPoints.push({
-            x: new Date(data._time),
-            y: Number(data._value),
+          const channelId = data["ChannelId"] as string;
+          const time = data["_time"] as string;
+          const value = data["_value"];
+          activePlotChannelsRef.current[channelId]?.dataPoints.push({
+            x: new Date(time),
+            y: Number(value),
           });
         });
         // Re-render all charts with the new data
