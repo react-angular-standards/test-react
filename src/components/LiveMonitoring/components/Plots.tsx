@@ -26,7 +26,10 @@ import { ChartInstance } from "../types/ChartSchema";
 import { useGridLayoutSettings } from "../../../hooks/useGridLayoutSettings";
 import { CustomSlider } from "../../Widgets/CustomSlider";
 import { UrlConstant } from "../../../util/UrlConstans";
-import { useRecordedLiveData } from "../../../hooks/useRecordedLiveData";
+import {
+  useRecordedLiveData,
+  RecordedDataPoint,
+} from "../../../hooks/useRecordedLiveData";
 import { PlotGroupSelection } from "./PlotGroupSelection";
 import {
   makeSeriesData,
@@ -154,7 +157,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         setChannelGroups((prevGroups: ChannelGroup[]) => {
           const newGroups = prevGroups.map((group) => ({
             ...group,
-            channels: group.channels.filter((label) => {
+            channels: group.channels.filter((label: string) => {
               const res = selectedLabels.includes(label);
 
               if (res) {
@@ -463,13 +466,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
      * updatePlotsWithRecordedData (on slider scrub).
      */
     const applyRecordedData = useCallback(
-      (
-        recordedData: Array<{
-          ChannelId: string;
-          _time: string;
-          _value: number | string;
-        }> | null,
-      ) => {
+      (recordedData: RecordedDataPoint[] | null) => {
         // Clear existing live data first
         Object.keys(activePlotChannelsRef.current).forEach((channel) => {
           activePlotChannelsRef.current[channel].dataPoints = [];
@@ -514,13 +511,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
         // Fetch recorded data FIRST, then flip to paused so the slider
         // and chart are fully populated before they become visible.
-        fetchRecordedData(startTime, 10)?.then(
-          (recordedData: Awaited<ReturnType<typeof fetchRecordedData>>) => {
-            applyRecordedData(recordedData);
-            // Only switch to paused AFTER data has been applied to the chart
-            setIsPlotPausedForAnalysis(true);
-          },
-        );
+        fetchRecordedData(startTime, 10)?.then((recordedData) => {
+          applyRecordedData(recordedData);
+          // Only switch to paused AFTER data has been applied to the chart
+          setIsPlotPausedForAnalysis(true);
+        });
       } else {
         // Resuming — flip state immediately; live data resumes via WebSocket
         setIsPlotPausedForAnalysis(false);
@@ -566,7 +561,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       const sourceGroup = newGroups.find((group) => group.id === sourceId);
       if (sourceGroup) {
         sourceGroup.channels = sourceGroup.channels.filter(
-          (ch) => ch !== channelId,
+          (ch: string) => ch !== channelId,
         );
       }
       return newGroups;
@@ -704,7 +699,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         const targetGroup = newGroups.find((group) => group.id === groupId);
         if (targetGroup) {
           targetGroup.channels = targetGroup.channels.filter(
-            (ch) => ch !== channel,
+            (ch: string) => ch !== channel,
           );
           setAvailableChannels((prev: string[]) =>
             [...prev, channel].sort((a, b) => a.localeCompare(b)),
@@ -814,15 +809,13 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 isDraggable={true}
                 isResizable={false}
                 draggableHandle=".draggable-handle"
-                onLayoutChange={(newLayout) => {
-                  setChartOptions((options) => {
-                    const sortedOptions = handleLayoutChange(
-                      newLayout,
-                      options,
-                      showChannelSection,
-                    );
-                    return sortedOptions;
-                  });
+                onLayoutChange={(newLayout: any) => {
+                  const sorted = handleLayoutChange(
+                    newLayout,
+                    chartOptions,
+                    showChannelSection,
+                  );
+                  setGridLayout(sorted);
                 }}
               >
                 {chartOptions.map((chart) => {
