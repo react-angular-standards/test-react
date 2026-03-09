@@ -38,6 +38,23 @@ import {
   DEFAULT_AXIS_COLOR,
 } from "../config/chartConfig";
 
+// ─── Stripline marker types ───────────────────────────────────────────────────
+
+interface StriplineMarker {
+  timestamp: Date;
+  channelValues: Record<string, { label: string; value: number | null }>;
+}
+
+interface StriplineState {
+  x1: StriplineMarker | null;
+  x2: StriplineMarker | null;
+}
+
+// Per-chart stripline state keyed by chart id
+interface AllStriplines {
+  [chartId: string]: StriplineState;
+}
+
 interface LiveMonitoringProps {
   drawerOpenState: boolean;
 }
@@ -45,6 +62,189 @@ interface LiveMonitoringProps {
 export interface DataChartFunction {
   updateChartDataOption: () => void;
 }
+
+// ─── Tooltip overlay styles ───────────────────────────────────────────────────
+
+const striplineTooltipStyles = `
+  .stripline-tooltip-overlay {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.93);
+    color: #f1f5f9;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 12px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    z-index: 50;
+    min-width: 320px;
+    max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    pointer-events: none;
+    border: 1px solid rgba(99,102,241,0.35);
+  }
+  .slt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 6px;
+  }
+  .slt-title {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+    color: #a5b4fc;
+  }
+  .slt-hint {
+    font-size: 10px;
+    color: #94a3b8;
+    font-style: italic;
+  }
+  .slt-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .slt-table th {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 6px 3px 0;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .slt-table td {
+    padding: 3px 6px 3px 0;
+    vertical-align: middle;
+  }
+  .slt-label {
+    color: #e2e8f0;
+    font-weight: 500;
+  }
+  .slt-x1-val {
+    color: #34d399;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .slt-x2-val {
+    color: #60a5fa;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .slt-diff-val {
+    color: #f59e0b;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .slt-avg-val {
+    color: #c084fc;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .slt-total-val {
+    color: #fb923c;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .slt-ts-row {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .slt-ts-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .slt-ts-val {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+  .slt-timediff-row {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .slt-badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+  }
+  .slt-badge-green  { background: rgba(52,211,153,0.18); color: #34d399; }
+  .slt-badge-blue   { background: rgba(96,165,250,0.18); color: #60a5fa; }
+  .slt-badge-yellow { background: rgba(245,158,11,0.18); color: #f59e0b; }
+  .slt-clear-btn {
+    pointer-events: all;
+    cursor: pointer;
+    background: rgba(239,68,68,0.18);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: #fca5a5;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    transition: background 0.15s;
+  }
+  .slt-clear-btn:hover {
+    background: rgba(239,68,68,0.35);
+  }
+`;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmt = (d: Date): string =>
+  `${d.getHours().toString().padStart(2, "0")}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}.${d
+    .getMilliseconds()
+    .toString()
+    .padStart(3, "0")}`;
+
+const fmtDiff = (ms: number): string => {
+  const abs = Math.abs(ms);
+  if (abs < 1000) return `${abs} ms`;
+  if (abs < 60000) return `${(abs / 1000).toFixed(3)} s`;
+  const m = Math.floor(abs / 60000);
+  const s = ((abs % 60000) / 1000).toFixed(1);
+  return `${m}m ${s}s`;
+};
+
+const fmtNum = (v: number | null): string => (v === null ? "—" : v.toFixed(4));
+
+/** Find the dataPoint in a series closest to the clicked timestamp */
+const findClosestValue = (
+  dataPoints: { x: Date; y: number }[],
+  ts: Date,
+): number | null => {
+  if (!dataPoints || dataPoints.length === 0) return null;
+  let closest: { x: Date; y: number } | null = null;
+  let minDiff = Infinity;
+  for (const pt of dataPoints) {
+    const diff = Math.abs(pt.x.getTime() - ts.getTime());
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = pt;
+    }
+  }
+  // Accept within a 30-second window
+  return closest && minDiff < 30000 ? closest.y : null;
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
   (props, ref) => {
@@ -90,6 +290,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       useState(false);
     const [showChannelSection, setShowChannelSection] = useState(true);
 
+    // ── Stripline state ──────────────────────────────────────────────────────
+    const [allStriplines, setAllStriplines] = useState<AllStriplines>({});
+    // Tracks which click is next: "x1" or "x2" per chart
+    const nextClickRef = useRef<Record<string, "x1" | "x2">>({});
+
     const { recordedDataTimeRangeRef, refreshTimeRangeRef, fetchRecordedData } =
       useRecordedLiveData();
     const chartRefs = useRef<{
@@ -100,9 +305,151 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       main: null,
     });
 
+    // ── Build channel-value snapshot at a given timestamp ────────────────────
+    const buildChannelSnapshot = useCallback(
+      (
+        ts: Date,
+        chartId: string,
+      ): Record<string, { label: string; value: number | null }> => {
+        // Determine which channels belong to this chart
+        const group = channelGroups.find((g) => g.id === chartId);
+        const channelLabels: string[] = group
+          ? group.channels
+          : availableChannels;
+
+        const snapshot: Record<
+          string,
+          { label: string; value: number | null }
+        > = {};
+        channelLabels.forEach((label) => {
+          const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
+            (id) => channelIdToPlotInfoRef.current[id]?.label === label,
+          );
+          if (!channelId) return;
+          const series = activePlotChannelsRef.current[channelId];
+          const value = series ? findClosestValue(series.dataPoints, ts) : null;
+          snapshot[channelId] = { label, value };
+        });
+        return snapshot;
+      },
+      [
+        activePlotChannelsRef,
+        availableChannels,
+        channelGroups,
+        channelIdToPlotInfoRef,
+      ],
+    );
+
+    // ── Clear striplines for a chart ─────────────────────────────────────────
+    const clearStriplines = useCallback((chartId: string) => {
+      setAllStriplines((prev) => ({
+        ...prev,
+        [chartId]: { x1: null, x2: null },
+      }));
+      nextClickRef.current[chartId] = "x1";
+
+      // Remove striplines from the live chart instance
+      const chartInst = chartRefs.current[chartId] as unknown as ChartInstance;
+      if (chartInst?.options?.axisX) {
+        (chartInst.options.axisX as any).stripLines = [];
+        (chartInst as any).render?.();
+      }
+    }, []);
+
+    // ── Attach click handler to a chart instance ─────────────────────────────
+    const attachChartClickHandler = useCallback(
+      (chartId: string) => {
+        const chartInst = chartRefs.current[
+          chartId
+        ] as unknown as ChartInstance & {
+          render: () => void;
+        };
+        if (!chartInst?.options) return;
+
+        (chartInst.options as any).click = (e: any) => {
+          const ts: Date | null = e.axisX?.[0]
+            ? new Date(e.axisX[0].value)
+            : null;
+          if (!ts || isNaN(ts.getTime())) return;
+
+          const which = nextClickRef.current[chartId] ?? "x1";
+          const snapshot = buildChannelSnapshot(ts, chartId);
+          const marker: StriplineMarker = {
+            timestamp: ts,
+            channelValues: snapshot,
+          };
+
+          // Determine stripline color
+          const color = which === "x1" ? "#34d399" : "#60a5fa";
+
+          // Update or create stripLines array on the axisX
+          const axisX = (chartInst.options as any).axisX ?? {};
+          const existingLines: any[] = axisX.stripLines ?? [];
+
+          // Remove old stripline for this marker if re-setting
+          const filtered = existingLines.filter(
+            (sl: any) => sl._marker !== which,
+          );
+          const newLine = {
+            _marker: which,
+            value: ts,
+            thickness: 2,
+            color,
+            lineDashType: "dash",
+            label: which.toUpperCase(),
+            labelFontColor: color,
+            labelFontSize: 11,
+            labelFontWeight: "bold",
+            labelBackgroundColor: "transparent",
+            labelPlacement: "outside",
+          };
+          (chartInst.options as any).axisX = {
+            ...axisX,
+            stripLines: [...filtered, newLine],
+          };
+
+          chartInst.render();
+
+          // Update state
+          setAllStriplines((prev) => {
+            const current = prev[chartId] ?? { x1: null, x2: null };
+            return {
+              ...prev,
+              [chartId]: {
+                ...current,
+                [which]: marker,
+              },
+            };
+          });
+
+          // Advance click sequence: x1 → x2 → x1 (reset)
+          nextClickRef.current[chartId] = which === "x1" ? "x2" : "x1";
+        };
+
+        chartInst.render();
+      },
+      [buildChannelSnapshot],
+    );
+
+    // ── Re-attach handlers when chart refs change ────────────────────────────
+    useEffect(() => {
+      Object.keys(chartRefs.current).forEach((chartId) => {
+        const chart = chartRefs.current[chartId] as unknown as ChartInstance;
+        if (chart?.options) {
+          chart.options.rangeChanged = (e) => {
+            const isZoomed =
+              e.axisX[0].viewportMinimum != null ||
+              e.axisX[0].viewportMaximum != null;
+            isZoomedRefs.current[chartId] = isZoomed;
+          };
+          // Attach click handler
+          attachChartClickHandler(chartId);
+        }
+      });
+    }, [attachChartClickHandler]);
+
     const handlePlotChannelSelect = useCallback(
       (selectedChannelIds: string[]) => {
-        // Use channelIdToPlotInfoRef directly - no splitting needed
         selectedChannelIds.forEach((channelId) => {
           const channelInfo = channelIdToPlotInfoRef.current[channelId];
 
@@ -123,7 +470,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           }
         });
 
-        // Get labels for comparison with existing channel groups
         const selectedLabels = selectedChannelIds.map(
           (id) => channelIdToPlotInfoRef.current[id]?.label || id,
         );
@@ -132,7 +478,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         );
 
         setAvailableChannels((prev: string[]) => {
-          console.log("selectedChannelIds", selectedChannelIds);
           const newAvailable = prev.filter((ch) => selectedLabels.includes(ch));
           const newChannels = selectedLabels.filter((label) => {
             const channelId = selectedChannelIds.find(
@@ -158,7 +503,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               const res = selectedLabels.includes(label);
 
               if (res) {
-                // Find channelId from label
                 const channelId = selectedChannelIds.find(
                   (id) => channelIdToPlotInfoRef.current[id]?.label === label,
                 );
@@ -240,45 +584,26 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     ]);
 
     useEffect(() => {
-      Object.keys(chartRefs.current).forEach((chartId) => {
-        const chart = chartRefs.current[chartId] as unknown as ChartInstance;
-        if (chart?.options) {
-          chart.options.rangeChanged = (e) => {
-            const isZoomed =
-              e.axisX[0].viewportMinimum != null ||
-              e.axisX[0].viewportMaximum != null;
-            isZoomedRefs.current[chartId] = isZoomed;
-          };
-        }
-      });
-    }, []);
-
-    useEffect(() => {
       updateChartDataOption();
     }, [enableChartLegend, channelGroups, primaryGrpName, availableChannels]);
 
-    // Watch for channel sync from LiveDataTable and update available channels
     useEffect(() => {
       console.log(
         "📊 Channel sync detected from LiveDataTable, syncing channels to plots...",
       );
 
-      // Get all channels from channelIdToPlotInfoRef
       const allChannelLabels = Object.values(
         channelIdToPlotInfoRef.current,
       ).map((info) => info.label);
 
-      // Filter out channels that are already in groups
       const assignedChannels = channelGroups.flatMap((group) => group.channels);
       const newAvailableChannels = allChannelLabels.filter(
         (label) => !assignedChannels.includes(label),
       );
 
-      // Update available channels - this will trigger updateChartDataOption via the effect above
       setAvailableChannels((prev) => {
         const prevSet = new Set(prev);
         const newSet = new Set(newAvailableChannels);
-        // Only update if there's a difference
         if (
           prev.length !== newAvailableChannels.length ||
           !prev.every((ch) => newSet.has(ch))
@@ -324,12 +649,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             availableChannels;
           const dataArray = [];
 
-          // unit → axis assignment: -1 = primary axisY, 0+ = axisY2 index
           const unitToAxisMap = new Map<string, number>();
           const axisY2Array: ReturnType<typeof makeSecondaryAxisY>[] = [];
           let primaryAxisY: ReturnType<typeof makePrimaryAxisY> | null = null;
 
-          // Pass 1 — build Y-axes, one per unique unit, colour-matched to channel
+          // Pass 1 — build Y-axes
           for (let i = 0; i < channels.length; i++) {
             const channelLabel = channels[i];
             const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
@@ -354,7 +678,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             }
           }
 
-          // Pass 2 — build data series, keeping colour consistent with the axis
+          // Pass 2 — build data series
           for (let i = 0; i < channels.length; i++) {
             const channelLabel = channels[i];
             const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
@@ -374,7 +698,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
               assignedAxisIndex === -1
                 ? {
                     ...data,
-                    // ensure colour stays in sync even if ref was mutated
                     color,
                     lineColor: color,
                     markerColor: color,
@@ -395,7 +718,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
           const axisY = primaryAxisY ?? FALLBACK_AXIS_Y;
 
-          // Get the title for this chart
           const chartTitle =
             chart.id === "main"
               ? primaryGrpName
@@ -415,7 +737,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                   ...LEGEND_DEFAULTS,
                   itemclick: ((e: any) => {
                     const channelLabel = e.dataSeries.name;
-                    // Find channelId from label
                     const channelId = Object.keys(
                       channelIdToPlotInfoRef.current,
                     ).find(
@@ -425,7 +746,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     );
 
                     if (channelId && activePlotChannelsRef.current[channelId]) {
-                      // Toggle visibility in both the chart and our ref
                       const newVisibility = !e.dataSeries.visible;
                       e.dataSeries.visible = newVisibility;
                       activePlotChannelsRef.current[channelId].visible =
@@ -456,19 +776,11 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       primaryGrpName,
     ]);
 
-    /**
-     * Shared helper — clears all live dataPoints, fills them with the API
-     * response, then re-renders the chart.
-     * Used by both handlePauseForAnalysis (on pause) and
-     * updatePlotsWithRecordedData (on slider scrub).
-     */
     const applyRecordedData = useCallback(
       (recordedData: Array<{ [key: string]: string | number }> | null) => {
-        // Clear existing live data first
         Object.keys(activePlotChannelsRef.current).forEach((channel) => {
           activePlotChannelsRef.current[channel].dataPoints = [];
         });
-        // Push fetched points into the correct channel buffers
         recordedData?.forEach((data) => {
           const channelId = data["ChannelId"] as string;
           const time = data["_time"] as string;
@@ -478,7 +790,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             y: Number(value),
           });
         });
-        // Re-render all charts with the new data
         updateChartDataOption();
       },
       [activePlotChannelsRef, updateChartDataOption],
@@ -504,20 +815,15 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             channelData.dataPoints.length - 1
           ]?.x.getTime() || Date.now();
 
-        // Anchor the slider range to the latest live timestamp
         refreshTimeRangeRef(latestTime);
 
         const startTime = new Date(latestTime - 10000).toISOString();
 
-        // Fetch recorded data FIRST, then flip to paused so the slider
-        // and chart are fully populated before they become visible.
         fetchRecordedData(startTime, 10)?.then((recordedData) => {
           applyRecordedData(recordedData);
-          // Only switch to paused AFTER data has been applied to the chart
           setIsPlotPausedForAnalysis(true);
         });
       } else {
-        // Resuming — flip state immediately; live data resumes via WebSocket
         setIsPlotPausedForAnalysis(false);
       }
     }, [
@@ -581,7 +887,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         }
 
         const channelLabel = result.draggableId;
-        // Find channelId from label
         const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
           (id) => channelIdToPlotInfoRef.current[id]?.label === channelLabel,
         );
@@ -769,9 +1074,188 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       setShowChannelSection(!showChannelSection);
     };
 
+    // ── Re-attach click handlers after chart renders ──────────────────────────
+    const handleChartRef = useCallback(
+      (chartId: string, chartInst: ChartInstance | null) => {
+        chartRefs.current[chartId] = chartInst as any;
+        if (chartInst) {
+          // Small defer so CanvasJS finishes its own setup first
+          setTimeout(() => attachChartClickHandler(chartId), 0);
+        }
+      },
+      [attachChartClickHandler],
+    );
+
+    // ── Stripline comparison tooltip renderer ─────────────────────────────────
+    const renderStriplineTooltip = (chartId: string) => {
+      const sl = allStriplines[chartId];
+      if (!sl) return null;
+
+      const { x1, x2 } = sl;
+      const hasX1 = x1 !== null;
+      const hasX2 = x2 !== null;
+
+      if (!hasX1 && !hasX2) return null;
+
+      const nextClick = nextClickRef.current[chartId] ?? "x1";
+
+      // Gather all channel ids present in either marker
+      const allChannelIds = Array.from(
+        new Set([
+          ...Object.keys(x1?.channelValues ?? {}),
+          ...Object.keys(x2?.channelValues ?? {}),
+        ]),
+      );
+
+      return (
+        <div className="stripline-tooltip-overlay">
+          <div className="slt-header">
+            <span className="slt-title">📍 Stripline Analysis</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className="slt-hint">
+                {!hasX1
+                  ? "Click chart to set X1"
+                  : !hasX2
+                    ? "Click chart to set X2"
+                    : "Both markers set"}
+              </span>
+              {(hasX1 || hasX2) && (
+                <button
+                  className="slt-clear-btn"
+                  onClick={() => clearStriplines(chartId)}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Timestamps row */}
+          <div className="slt-ts-row">
+            <table className="slt-table" style={{ marginBottom: 0 }}>
+              <thead>
+                <tr>
+                  <th>Marker</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hasX1 && (
+                  <tr>
+                    <td>
+                      <span className="slt-badge slt-badge-green">X1</span>
+                    </td>
+                    <td className="slt-x1-val">{fmt(x1!.timestamp)}</td>
+                  </tr>
+                )}
+                {hasX2 && (
+                  <tr>
+                    <td>
+                      <span className="slt-badge slt-badge-blue">X2</span>
+                    </td>
+                    <td className="slt-x2-val">{fmt(x2!.timestamp)}</td>
+                  </tr>
+                )}
+                {hasX1 && hasX2 && (
+                  <tr>
+                    <td>
+                      <span className="slt-badge slt-badge-yellow">ΔT</span>
+                    </td>
+                    <td className="slt-diff-val">
+                      {fmtDiff(
+                        x2!.timestamp.getTime() - x1!.timestamp.getTime(),
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Channel values table */}
+          {allChannelIds.length > 0 && (
+            <table className="slt-table" style={{ marginTop: 6 }}>
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  {hasX1 && <th style={{ color: "#34d399" }}>X1 Value</th>}
+                  {hasX2 && <th style={{ color: "#60a5fa" }}>X2 Value</th>}
+                  {hasX1 && hasX2 && (
+                    <>
+                      <th style={{ color: "#f59e0b" }}>Diff</th>
+                      <th style={{ color: "#fb923c" }}>Total</th>
+                      <th style={{ color: "#c084fc" }}>Avg</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {allChannelIds.map((cid) => {
+                  const v1 = x1?.channelValues[cid]?.value ?? null;
+                  const v2 = x2?.channelValues[cid]?.value ?? null;
+                  const label =
+                    x1?.channelValues[cid]?.label ||
+                    x2?.channelValues[cid]?.label ||
+                    cid;
+
+                  const diff = v1 !== null && v2 !== null ? v2 - v1 : null;
+                  const total = v1 !== null && v2 !== null ? v1 + v2 : null;
+                  const avg = v1 !== null && v2 !== null ? (v1 + v2) / 2 : null;
+
+                  return (
+                    <tr key={cid}>
+                      <td
+                        className="slt-label"
+                        style={{
+                          maxWidth: 110,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </td>
+                      {hasX1 && <td className="slt-x1-val">{fmtNum(v1)}</td>}
+                      {hasX2 && <td className="slt-x2-val">{fmtNum(v2)}</td>}
+                      {hasX1 && hasX2 && (
+                        <>
+                          <td className="slt-diff-val">
+                            {diff !== null
+                              ? (diff >= 0 ? "+" : "") + fmtNum(diff)
+                              : "—"}
+                          </td>
+                          <td className="slt-total-val">{fmtNum(total)}</td>
+                          <td className="slt-avg-val">{fmtNum(avg)}</td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* Next click indicator */}
+          <div className="slt-timediff-row">
+            <span style={{ fontSize: 10, color: "#94a3b8" }}>
+              Next click sets:
+            </span>
+            <span
+              className={`slt-badge ${
+                nextClick === "x1" ? "slt-badge-green" : "slt-badge-blue"
+              }`}
+            >
+              {nextClick.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      );
+    };
+
     return (
       <>
         <style>{customPlotsStyles}</style>
+        <style>{striplineTooltipStyles}</style>
         <div className="row">
           <div
             className={showChannelSection ? "col-9" : "col-12"}
@@ -819,9 +1303,13 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 }}
               >
                 {chartOptions.map((chart) => {
+                  const sl = allStriplines[chart.id];
+                  const hasAnyStripline = sl?.x1 !== null || sl?.x2 !== null;
+
                   return (
                     <div className="chart-container" key={chart.id}>
                       <div className="plot-data-container">
+                        {/* Pause/Resume button */}
                         <Tooltip
                           title={
                             isPlotPausedForAnalysis
@@ -846,12 +1334,41 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                             )}
                           </span>
                         </Tooltip>
+
+                        {/* Stripline instruction badge (shown when no striplines set yet) */}
+                        {!hasAnyStripline && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 10,
+                              left: "50%",
+                              transform: "translateX(-50%)",
+                              background: "rgba(99,102,241,0.12)",
+                              border: "1px dashed rgba(99,102,241,0.4)",
+                              borderRadius: 6,
+                              padding: "2px 10px",
+                              fontSize: 10,
+                              color: "#6366f1",
+                              fontWeight: 600,
+                              zIndex: 20,
+                              pointerEvents: "none",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Click chart to set X1 stripline
+                          </div>
+                        )}
+
                         <CanvasJSReact.CanvasJSChart
-                          ref={(ref: ChartInstance) =>
-                            (chartRefs.current[chart.id] = ref)
+                          ref={(chartInst: ChartInstance) =>
+                            handleChartRef(chart.id, chartInst)
                           }
                           options={chart.options}
                         />
+
+                        {/* Stripline tooltip overlay */}
+                        {renderStriplineTooltip(chart.id)}
+
                         {isPlotPausedForAnalysis && (
                           <div className="time-range-handle">
                             <CustomSlider
@@ -918,5 +1435,4 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
   },
 );
 
-Plots.displayName = "Plots";
 export default Plots;
