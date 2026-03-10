@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -642,18 +643,25 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       tabUniqueId,
     ]);
 
+    // Stable key that only changes when charts are added / removed.
+    // Using full chartOptions as a dep would re-fire the layout effect on every
+    // live data tick (setChartOptions is called frequently), which feeds back
+    // into onLayoutChange → setGridLayout → infinite loop.
+    const chartStructureKey = useMemo(
+      () => chartOptions.map((c) => c.id).join(","),
+      [chartOptions],
+    );
+    // Keep a ref so the layout effect can read the latest options without
+    // listing the full chartOptions array as a dep.
+    const chartOptionsRef = useRef(chartOptions);
+    chartOptionsRef.current = chartOptions;
+
     useEffect(() => {
-      const layout = buildLayoutFromOptionList(
-        chartOptions,
-        showChannelSection,
+      setGridLayout(
+        buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection),
       );
-      setGridLayout(layout);
-    }, [
-      buildLayoutFromOptionList,
-      chartOptions,
-      showChannelSection,
-      setGridLayout,
-    ]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [buildLayoutFromOptionList, chartStructureKey, showChannelSection]);
 
     useEffect(() => {
       updateChartDataOption();
@@ -1379,7 +1387,24 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     chartOptions,
                     showChannelSection,
                   );
-                  setGridLayout(sorted);
+                  setGridLayout((prev) => {
+                    // Bail out if nothing actually changed so we don't
+                    // feed react-grid-layout's onLayoutChange → setGridLayout
+                    // → onLayoutChange infinite loop.
+                    if (
+                      prev.length === sorted.length &&
+                      prev.every(
+                        (item, i) =>
+                          item.i === sorted[i].i &&
+                          item.x === sorted[i].x &&
+                          item.y === sorted[i].y &&
+                          item.w === sorted[i].w &&
+                          item.h === sorted[i].h,
+                      )
+                    )
+                      return prev;
+                    return sorted;
+                  });
                 }}
               >
                 {chartOptions.map((chart) => {
