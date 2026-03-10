@@ -35,7 +35,7 @@ import {
   FALLBACK_AXIS_Y,
   LEGEND_DEFAULTS,
   makePlotOption,
-  DEFAULT_AXIS_COLOR,
+  CHANNEL_COLORS,
 } from "../config/chartConfig";
 
 // ─── Stripline marker types ───────────────────────────────────────────────────
@@ -305,6 +305,18 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       main: null,
     });
 
+    // ── Per-channel colour assignment (stable across re-renders) ─────────────
+    const channelColorMapRef = useRef<Record<string, string>>({});
+    const channelColorCursorRef = useRef(0);
+    const getChannelColor = useCallback((channelId: string): string => {
+      if (!channelColorMapRef.current[channelId]) {
+        channelColorMapRef.current[channelId] =
+          CHANNEL_COLORS[channelColorCursorRef.current % CHANNEL_COLORS.length];
+        channelColorCursorRef.current++;
+      }
+      return channelColorMapRef.current[channelId];
+    }, []);
+
     // ── Build channel-value snapshot at a given timestamp ────────────────────
     const buildChannelSnapshot = useCallback(
       (
@@ -341,100 +353,149 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     );
 
     // ── Clear striplines for a chart ─────────────────────────────────────────
-    const clearStriplines = useCallback((chartId: string) => {
-      setAllStriplines((prev) => ({
-        ...prev,
-        [chartId]: { x1: null, x2: null },
-      }));
-      nextClickRef.current[chartId] = "x1";
-
-      // Remove striplines from the live chart instance
-      const chartInst = chartRefs.current[chartId] as unknown as ChartInstance;
-      if (chartInst?.options?.axisX) {
-        (chartInst.options.axisX as any).stripLines = [];
-        (chartInst as any).render?.();
-      }
-    }, []);
-
-    // ── Attach click handler to a chart instance ─────────────────────────────
-    const attachChartClickHandler = useCallback(
+    const clearStriplines = useCallback(
       (chartId: string) => {
-        const chartInst = chartRefs.current[
-          chartId
-        ] as unknown as ChartInstance & {
-          render: () => void;
-        };
-        if (!chartInst?.options) return;
+        setAllStriplines((prev) => ({
+          ...prev,
+          [chartId]: { x1: null, x2: null },
+        }));
+        nextClickRef.current[chartId] = "x1";
 
-        (chartInst.options as any).click = (e: any) => {
-          const ts: Date | null = e.axisX?.[0]
-            ? new Date(e.axisX[0].value)
-            : null;
-          if (!ts || isNaN(ts.getTime())) return;
+        // Remove striplines from the live chart instance
+        const chartInst = (chartRefs.current[chartId] as any)?.chart as
+          | ChartInstance
+          | undefined;
+        if (chartInst?.options?.axisX) {
+          (chartInst.options.axisX as any).stripLines = [];
+          (chartInst as any).render?.();
+        }
 
-          const which = nextClickRef.current[chartId] ?? "x1";
-          const snapshot = buildChannelSnapshot(ts, chartId);
-          const marker: StriplineMarker = {
-            timestamp: ts,
-            channelValues: snapshot,
-          };
-
-          // Determine stripline color
-          const color = which === "x1" ? "#34d399" : "#60a5fa";
-
-          // Update or create stripLines array on the axisX
-          const axisX = (chartInst.options as any).axisX ?? {};
-          const existingLines: any[] = axisX.stripLines ?? [];
-
-          // Remove old stripline for this marker if re-setting
-          const filtered = existingLines.filter(
-            (sl: any) => sl._marker !== which,
-          );
-          const newLine = {
-            _marker: which,
-            value: ts,
-            thickness: 2,
-            color,
-            lineDashType: "dash",
-            label: which.toUpperCase(),
-            labelFontColor: color,
-            labelFontSize: 11,
-            labelFontWeight: "bold",
-            labelBackgroundColor: "transparent",
-            labelPlacement: "outside",
-          };
-          (chartInst.options as any).axisX = {
-            ...axisX,
-            stripLines: [...filtered, newLine],
-          };
-
-          chartInst.render();
-
-          // Update state
-          setAllStriplines((prev) => {
-            const current = prev[chartId] ?? { x1: null, x2: null };
+        // Clear striplines from React state so they don't reappear on rebuild
+        setChartOptions((prevOpts) =>
+          prevOpts.map((c) => {
+            if (c.id !== chartId) return c;
             return {
-              ...prev,
-              [chartId]: {
-                ...current,
-                [which]: marker,
+              ...c,
+              options: {
+                ...c.options,
+                axisX: {
+                  ...(c.options as any)?.axisX,
+                  stripLines: [],
+                },
               },
             };
-          });
-
-          // Advance click sequence: x1 → x2 → x1 (reset)
-          nextClickRef.current[chartId] = which === "x1" ? "x2" : "x1";
-        };
-
-        chartInst.render();
+          }),
+        );
       },
-      [buildChannelSnapshot],
+      [setChartOptions],
     );
+
+    // ── Core stripline setter — shared by chart-level and series-level clicks ──
+    const applyStriplineAt = useCallback(
+      (chartId: string, ts: Date) => {
+        if (!ts || isNaN(ts.getTime())) return;
+
+        const which = nextClickRef.current[chartId] ?? "x1";
+        const snapshot = buildChannelSnapshot(ts, chartId);
+        const marker: StriplineMarker = {
+          timestamp: ts,
+          channelValues: snapshot,
+        };
+        const color = which === "x1" ? "#34d399" : "#60a5fa";
+
+        // Draw stripline on the actual CanvasJS chart instance
+        const chartInst = (chartRefs.current[chartId] as any)?.chart as
+          | (ChartInstance & { render: () => void })
+          | undefined;
+        if (!chartInst?.options) return;
+
+        const axisX = (chartInst.options as any).axisX ?? {};
+        const existingLines: any[] = axisX.stripLines ?? [];
+        const filtered = existingLines.filter(
+          (sl: any) => sl._marker !== which,
+        );
+        const newLine = {
+          _marker: which,
+          value: ts,
+          thickness: 2,
+          color,
+          lineDashType: "dash",
+          label: which.toUpperCase(),
+          labelFontColor: color,
+          labelFontSize: 11,
+          labelFontWeight: "bold",
+          labelBackgroundColor: "transparent",
+          labelPlacement: "outside",
+        };
+        (chartInst.options as any).axisX = {
+          ...axisX,
+          stripLines: [...filtered, newLine],
+        };
+        chartInst.render();
+
+        setAllStriplines((prev) => {
+          const current = prev[chartId] ?? { x1: null, x2: null };
+          return { ...prev, [chartId]: { ...current, [which]: marker } };
+        });
+
+        // Persist striplines into React state so they survive option rebuilds
+        setChartOptions((prevOpts) =>
+          prevOpts.map((c) => {
+            if (c.id !== chartId) return c;
+            const stateLines: any[] =
+              (c.options as any)?.axisX?.stripLines ?? [];
+            const filteredState = stateLines.filter(
+              (sl: any) => sl._marker !== which,
+            );
+            return {
+              ...c,
+              options: {
+                ...c.options,
+                axisX: {
+                  ...(c.options as any)?.axisX,
+                  stripLines: [...filteredState, newLine],
+                },
+              },
+            };
+          }),
+        );
+
+        // Advance click sequence: x1 → x2 → x1
+        nextClickRef.current[chartId] = which === "x1" ? "x2" : "x1";
+      },
+      [buildChannelSnapshot, setChartOptions],
+    );
+
+    // Keep a stable ref to applyStriplineAt so attachChartClickHandler
+    // doesn't need to be recreated every time live-data deps change.
+    const applyStriplineAtRef = useRef(applyStriplineAt);
+    applyStriplineAtRef.current = applyStriplineAt;
+
+    // ── Attach chart-level click handler (fires on empty-area clicks too) ──────
+    const attachChartClickHandler = useCallback((chartId: string) => {
+      const chartInst = (chartRefs.current[chartId] as any)?.chart as
+        | (ChartInstance & { render: () => void })
+        | undefined;
+      if (!chartInst?.options) return;
+
+      (chartInst.options as any).click = (e: any) => {
+        const ts: Date | null = e.axisX?.[0]
+          ? new Date(e.axisX[0].value)
+          : null;
+        if (!ts || isNaN(ts.getTime())) return;
+        applyStriplineAtRef.current(chartId, ts);
+      };
+
+      chartInst.render();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Re-attach handlers when chart refs change ────────────────────────────
     useEffect(() => {
       Object.keys(chartRefs.current).forEach((chartId) => {
-        const chart = chartRefs.current[chartId] as unknown as ChartInstance;
+        const chart = (chartRefs.current[chartId] as any)?.chart as
+          | ChartInstance
+          | undefined;
         if (chart?.options) {
           chart.options.rangeChanged = (e) => {
             const isZoomed =
@@ -463,7 +524,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             activePlotChannelsRef.current[channelId] = makeSeriesData(
               channelId,
               channelInfo.label,
-              channelInfo.color || DEFAULT_AXIS_COLOR,
+              getChannelColor(channelId),
               axisIndex,
               enableChartLegend,
             );
@@ -521,6 +582,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         channelIdToPlotInfoRef,
         channelGroups,
         enableChartLegend,
+        getChannelColor,
         setAvailableChannels,
         setChannelGroups,
       ],
@@ -665,7 +727,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             if (!channelInfo) continue;
 
             const unit = channelInfo.unit || "Value";
-            const color = channelInfo.color || DEFAULT_AXIS_COLOR;
+            const color = getChannelColor(channelId);
 
             if (!unitToAxisMap.has(unit)) {
               if (unitToAxisMap.size === 0) {
@@ -691,8 +753,13 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
             if (data === undefined || !channelInfo) continue;
 
             const unit = channelInfo.unit || "Value";
-            const color = channelInfo.color || DEFAULT_AXIS_COLOR;
+            const color = getChannelColor(channelId);
             const assignedAxisIndex = unitToAxisMap.get(unit);
+
+            const seriesClick = (e: any) => {
+              const ts = new Date(e.dataPoint.x);
+              applyStriplineAtRef.current(chart.id, ts);
+            };
 
             const seriesEntry =
               assignedAxisIndex === -1
@@ -702,6 +769,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     lineColor: color,
                     markerColor: color,
                     showInLegend: enableChartLegend,
+                    click: seriesClick,
                   }
                 : {
                     ...data,
@@ -711,6 +779,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                     showInLegend: enableChartLegend,
                     axisYType: "secondary",
                     axisYIndex: assignedAxisIndex,
+                    click: seriesClick,
                   };
 
             dataArray.push(seriesEntry);
@@ -771,6 +840,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       availableChannels,
       channelGroups,
       enableChartLegend,
+      getChannelColor,
       setChartOptions,
       channelIdToPlotInfoRef,
       primaryGrpName,
