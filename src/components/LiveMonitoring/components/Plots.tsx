@@ -598,30 +598,40 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         commandId: number;
         tabId: string;
         channelList?: number[];
-      }) =>
+      }): Promise<boolean> =>
         fetch(recordingUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify(payload),
         })
-          .then((response) => response.json())
-          .catch((error) => {
-            console.error("Recording error:", error);
-            alert("Failed to process recording request.");
-            throw error;
+          .then((response) => {
+            if (!response.ok) {
+              console.error(
+                `Recording request failed: ${response.status} ${response.statusText}`,
+              );
+              return false;
+            }
+            return true;
+          })
+          .catch((error: Error) => {
+            console.error("Recording fetch error:", error.message);
+            return false;
           });
 
       if (isRecording && !isUpdateRecordingRequired) {
-        fetchRecordingData({ ...commonPayload, channelList: [] }).then(() => {
-          setIsRecording(false);
-        });
+        fetchRecordingData({ ...commonPayload, channelList: [] }).then(
+          (ok) => ok && setIsRecording(false),
+        );
       } else {
         const channelList = Object.keys(activePlotChannelsRef.current).map(
           (channel) => Number(channel),
         );
-        fetchRecordingData({ ...commonPayload, channelList }).then(() => {
-          setIsRecording(true);
-          setIsUpdateRecordingRequired(false);
+        fetchRecordingData({ ...commonPayload, channelList }).then((ok) => {
+          if (ok) {
+            setIsRecording(true);
+            setIsUpdateRecordingRequired(false);
+          }
         });
       }
     }, [
