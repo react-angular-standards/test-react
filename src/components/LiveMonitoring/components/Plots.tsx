@@ -1394,29 +1394,24 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                 isResizable={false}
                 draggableHandle=".draggable-handle"
                 onLayoutChange={(newLayout: any) => {
-                  const sorted = handleLayoutChange(
+                  const sorted: LayoutItems[] = handleLayoutChange(
                     newLayout,
                     chartOptions,
                     showChannelSection,
                   );
-                  setGridLayout((prev) => {
-                    // Bail out if nothing actually changed so we don't
-                    // feed react-grid-layout's onLayoutChange → setGridLayout
-                    // → onLayoutChange infinite loop.
-                    if (
-                      prev.length === sorted.length &&
-                      prev.every(
-                        (item, i) =>
-                          item.i === sorted[i].i &&
-                          item.x === sorted[i].x &&
-                          item.y === sorted[i].y &&
-                          item.w === sorted[i].w &&
-                          item.h === sorted[i].h,
-                      )
-                    )
-                      return prev;
-                    return sorted;
-                  });
+                  // Compare against current gridLayout from closure to avoid
+                  // the onLayoutChange → setGridLayout → onLayoutChange loop.
+                  const unchanged =
+                    gridLayout.length === sorted.length &&
+                    gridLayout.every(
+                      (item, i) =>
+                        item.i === sorted[i].i &&
+                        item.x === sorted[i].x &&
+                        item.y === sorted[i].y &&
+                        item.w === sorted[i].w &&
+                        item.h === sorted[i].h,
+                    );
+                  if (!unchanged) setGridLayout(sorted);
                 }}
               >
                 {chartOptions.map((chart) => {
