@@ -907,9 +907,10 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
         const startTime = new Date(latestTime - 10000).toISOString();
 
+        // Pause immediately so the UI responds without waiting for the fetch
+        setIsPlotPausedForAnalysis(true);
         fetchRecordedData(startTime, 10)?.then((recordedData) => {
           applyRecordedData(recordedData);
-          setIsPlotPausedForAnalysis(true);
         });
       } else {
         setIsPlotPausedForAnalysis(false);
@@ -926,11 +927,22 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
     useImperativeHandle(
       ref,
       () => ({
+        // Called by the parent on every live-data tick to refresh the display.
+        // Chart data lives in activePlotChannelsRef (already referenced by the
+        // CanvasJS options), so a direct render() is all that's needed — no
+        // React state update, no component re-render, no renderStriplineTooltip
+        // re-call.  Structural rebuilds (new channels, axis changes, legend) are
+        // handled automatically by the internal useEffect that watches
+        // channelGroups / availableChannels / enableChartLegend / primaryGrpName.
         updateChartDataOption: () => {
-          updateChartDataOption();
+          if (isPlotPausedForAnalysis) return; // don't overwrite paused view
+          Object.keys(chartRefs.current).forEach((chartId) => {
+            const inst = (chartRefs.current[chartId] as any)?.chart;
+            inst?.render?.();
+          });
         },
       }),
-      [updateChartDataOption],
+      [isPlotPausedForAnalysis],
     );
 
     const addChannelToTargetGroup = (
