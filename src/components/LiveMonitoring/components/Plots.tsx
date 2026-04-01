@@ -62,6 +62,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       chartOptions,
       channelIdToPlotInfoRef,
       connectionState,
+      dataStreamWSRef,
       primaryGrpName,
       triggerChannelSync,
       setBufferTimeWindow,
@@ -560,6 +561,88 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       setIsPlotPausedForAnalysis,
     ]);
 
+    // ── Stable refs so the onmessage closure never goes stale ────────────────
+    const bufferTimeWindowRef = useRef(bufferTimeWindow);
+    bufferTimeWindowRef.current = bufferTimeWindow;
+
+    const isPlotPausedRef = useRef(isPlotPausedForAnalysis);
+    isPlotPausedRef.current = isPlotPausedForAnalysis;
+
+    // ── Wire live-data WebSocket → dataPoints → render ────────────────────────
+    useEffect(() => {
+      const ws = dataStreamWSRef.current;
+      if (!ws) return;
+
+      const handler = (event: MessageEvent) => {
+        // Skip rendering while user is doing pause-analysis
+        if (isPlotPausedRef.current) return;
+
+        let messages: any[];
+        try {
+          const parsed = JSON.parse(event.data);
+          // Accept both a single object and an array of objects
+          messages = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return;
+        }
+
+        const cutoffMs = bufferTimeWindowRef.current * 1000;
+        let hasNewData = false;
+
+        messages.forEach((msg: any) => {
+          // Support both { ChannelId, _time, _value } and { channelId, timestamp, value }
+          const channelId =
+            msg.ChannelId !== undefined
+              ? String(msg.ChannelId)
+              : msg.channelId !== undefined
+                ? String(msg.channelId)
+                : null;
+
+          const rawTime = msg._time ?? msg.timestamp ?? msg.time;
+          const rawValue = msg._value ?? msg.value;
+
+          if (
+            channelId === null ||
+            rawTime === undefined ||
+            rawValue === undefined
+          )
+            return;
+          if (!activePlotChannelsRef.current[channelId]) return;
+
+          const pt = { x: new Date(rawTime), y: Number(rawValue) };
+          if (isNaN(pt.x.getTime()) || isNaN(pt.y)) return;
+
+          const dp = activePlotChannelsRef.current[channelId].dataPoints;
+          dp.push(pt);
+
+          // Trim points older than the buffer window
+          const cutoff = pt.x.getTime() - cutoffMs;
+          let trimIdx = 0;
+          while (trimIdx < dp.length && dp[trimIdx].x.getTime() < cutoff) {
+            trimIdx++;
+          }
+          if (trimIdx > 0) dp.splice(0, trimIdx);
+
+          hasNewData = true;
+        });
+
+        // Re-render all charts in one pass — no React state update, no re-render
+        if (hasNewData) {
+          Object.keys(chartRefs.current).forEach((chartId) => {
+            const inst = (chartRefs.current[chartId] as any)?.chart;
+            inst?.render?.();
+          });
+        }
+      };
+
+      ws.addEventListener("message", handler);
+      return () => ws.removeEventListener("message", handler);
+    }, [
+      // Re-wire only when the socket instance itself changes
+      dataStreamWSRef.current, // eslint-disable-line react-hooks/exhaustive-deps
+      activePlotChannelsRef,
+    ]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -571,7 +654,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
         // handled automatically by the internal useEffect that watches
         // channelGroups / availableChannels / enableChartLegend / primaryGrpName.
         updateChartDataOption: () => {
-          if (isPlotPausedForAnalysis) return; // don't overwrite paused view
+          if (isPlotPausedForAnalysis) return;
           Object.keys(chartRefs.current).forEach((chartId) => {
             const inst = (chartRefs.current[chartId] as any)?.chart;
             inst?.render?.();
