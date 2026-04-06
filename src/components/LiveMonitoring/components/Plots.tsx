@@ -132,6 +132,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       channelIdToPlotInfoRef,
       activePlotChannelsRef,
       setChartOptions,
+      isPlotPausedForAnalysis,
     });
 
     const handlePlotChannelSelect = useCallback(
@@ -370,32 +371,7 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const axisY2Array: ReturnType<typeof makeSecondaryAxisY>[] = [];
           let primaryAxisY: ReturnType<typeof makePrimaryAxisY> | null = null;
 
-          // Pass 1 — build Y-axes
-          for (let i = 0; i < channels.length; i++) {
-            const channelLabel = channels[i];
-            const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
-              (id) =>
-                channelIdToPlotInfoRef.current[id]?.label === channelLabel,
-            );
-            if (!channelId) continue;
-            const channelInfo = channelIdToPlotInfoRef.current[channelId];
-            if (!channelInfo) continue;
-
-            const unit = channelInfo.unit || "Value";
-            const color = getChannelColor(channelId);
-
-            if (!unitToAxisMap.has(unit)) {
-              if (unitToAxisMap.size === 0) {
-                unitToAxisMap.set(unit, -1);
-                primaryAxisY = makePrimaryAxisY(unit, color);
-              } else {
-                unitToAxisMap.set(unit, axisY2Array.length);
-                axisY2Array.push(makeSecondaryAxisY(unit, color));
-              }
-            }
-          }
-
-          // Pass 2 — build data series
+          // Single pass — register Y-axis for the unit (if new), then build the series
           for (let i = 0; i < channels.length; i++) {
             const channelLabel = channels[i];
             const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
@@ -409,6 +385,18 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
             const unit = channelInfo.unit || "Value";
             const color = getChannelColor(channelId);
+
+            // Register the axis the first time this unit is seen
+            if (!unitToAxisMap.has(unit)) {
+              if (unitToAxisMap.size === 0) {
+                unitToAxisMap.set(unit, -1);
+                primaryAxisY = makePrimaryAxisY(unit, color);
+              } else {
+                unitToAxisMap.set(unit, axisY2Array.length);
+                axisY2Array.push(makeSecondaryAxisY(unit, color));
+              }
+            }
+
             const assignedAxisIndex = unitToAxisMap.get(unit);
 
             const seriesClick = (e: any) => {
@@ -988,8 +976,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                           </span>
                         </Tooltip>
 
-                        {/* Stripline instruction badge (shown when no striplines set yet) */}
-                        {!hasAnyStripline && (
+                        {/* Stripline instruction badge (shown only when paused and no striplines set yet) */}
+                        {isPlotPausedForAnalysis && !hasAnyStripline && (
                           <div
                             style={{
                               position: "absolute",
@@ -1019,8 +1007,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
                           options={chart.options}
                         />
 
-                        {/* Stripline tooltip overlay */}
-                        {renderStriplineTooltip(chart.id)}
+                        {/* Stripline tooltip overlay (only visible when paused for analysis) */}
+                        {isPlotPausedForAnalysis &&
+                          renderStriplineTooltip(chart.id)}
 
                         {isPlotPausedForAnalysis && (
                           <div className="time-range-handle">

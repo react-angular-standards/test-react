@@ -228,6 +228,8 @@ export interface UseStriplinesParams {
   }>;
   activePlotChannelsRef: React.MutableRefObject<Record<string, SeriesData>>;
   setChartOptions: React.Dispatch<React.SetStateAction<PlotOptions[]>>;
+  /** Striplines are only active when the plot is paused for analysis. */
+  isPlotPausedForAnalysis: boolean;
 }
 
 export interface UseStriplinesReturn {
@@ -266,10 +268,17 @@ export function useStriplines({
   channelIdToPlotInfoRef,
   activePlotChannelsRef,
   setChartOptions,
+  isPlotPausedForAnalysis,
 }: UseStriplinesParams): UseStriplinesReturn {
   // ── State / refs owned by this hook ────────────────────────────────────────
   const [allStriplines, setAllStriplines] = useState<AllStriplines>({});
   const nextClickRef = useRef<Record<string, "x1" | "x2">>({});
+  // Keep a ref so the click handler always reads the latest pause state
+  // without needing to be re-created on every render.
+  const isPlotPausedRef = useRef(isPlotPausedForAnalysis);
+  useEffect(() => {
+    isPlotPausedRef.current = isPlotPausedForAnalysis;
+  }, [isPlotPausedForAnalysis]);
 
   // ── Build a per-channel value snapshot at a given timestamp ────────────────
   const buildChannelSnapshot = useCallback(
@@ -346,6 +355,8 @@ export function useStriplines({
   // ── Core stripline setter ──────────────────────────────────────────────────
   const applyStriplineAt = useCallback(
     (chartId: string, ts: Date) => {
+      // Never place striplines during live streaming — only when paused for analysis.
+      if (!isPlotPausedRef.current) return;
       if (!ts || isNaN(ts.getTime())) return;
 
       const which = nextClickRef.current[chartId] ?? "x1";
@@ -364,8 +375,13 @@ export function useStriplines({
 
       const axisX = (chartInst.options as any).axisX ?? {};
       const existingLines: any[] = axisX.stripLines ?? [];
-      const filtered = existingLines.filter((sl: any) => sl._marker !== which);
-      const newLine = {
+      // Filter out both the main line and the bottom-label ghost for this marker.
+      const filtered = existingLines.filter(
+        (sl: any) => sl._marker !== which && sl._marker !== `${which}_b`,
+      );
+
+      // Top label — inside the plot area, at the top end of the vertical line.
+      const newLineTop = {
         _marker: which,
         value: ts,
         thickness: 2,
@@ -375,12 +391,28 @@ export function useStriplines({
         labelFontColor: color,
         labelFontSize: 11,
         labelFontWeight: "bold",
-        labelBackgroundColor: "transparent",
+        labelBackgroundColor: "rgba(15,23,42,0.85)",
+        labelPlacement: "inside",
+      };
+
+      // Bottom label — ghost (invisible line) whose label appears outside the
+      // axis at the bottom end of the vertical line.
+      const newLineBot = {
+        _marker: `${which}_b`,
+        value: ts,
+        thickness: 1,
+        color: "rgba(0,0,0,0)",
+        label: which.toUpperCase(),
+        labelFontColor: color,
+        labelFontSize: 11,
+        labelFontWeight: "bold",
+        labelBackgroundColor: "rgba(15,23,42,0.85)",
         labelPlacement: "outside",
       };
+
       (chartInst.options as any).axisX = {
         ...axisX,
-        stripLines: [...filtered, newLine],
+        stripLines: [...filtered, newLineTop, newLineBot],
       };
       chartInst.render();
 
@@ -395,7 +427,7 @@ export function useStriplines({
           if (c.id !== chartId) return c;
           const stateLines: any[] = (c.options as any)?.axisX?.stripLines ?? [];
           const filteredState = stateLines.filter(
-            (sl: any) => sl._marker !== which,
+            (sl: any) => sl._marker !== which && sl._marker !== `${which}_b`,
           );
           return {
             ...c,
@@ -403,7 +435,7 @@ export function useStriplines({
               ...c.options,
               axisX: {
                 ...(c.options as any)?.axisX,
-                stripLines: [...filteredState, newLine],
+                stripLines: [...filteredState, newLineTop, newLineBot],
               },
             },
           };
@@ -429,8 +461,16 @@ export function useStriplines({
     if (!chartInst?.options) return;
 
     (chartInst.options as any).click = (e: any) => {
-      const ts: Date | null = e.axisX?.[0] ? new Date(e.axisX[0].value) : null;
-      if (!ts || isNaN(ts.getTime())) return;
+      // Only allow stripline placement when the plot is paused for analysis.
+      if (!isPlotPausedRef.current) return;
+      // e.axisX[0].value is only populated near the axis edge.
+      // convertPixelToValue(e.x) works for any click anywhere in the chart area.
+      const axis = (e.chart ?? chartInst)?.axisX?.[0];
+      if (!axis) return;
+      const xValue = axis.convertPixelToValue(e.x);
+      if (xValue == null || isNaN(xValue)) return;
+      const ts = new Date(xValue);
+      if (isNaN(ts.getTime())) return;
       applyStriplineAtRef.current(chartId, ts);
     };
 
