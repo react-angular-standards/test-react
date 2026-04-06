@@ -371,7 +371,35 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           const axisY2Array: ReturnType<typeof makeSecondaryAxisY>[] = [];
           let primaryAxisY: ReturnType<typeof makePrimaryAxisY> | null = null;
 
-          // Single pass — register Y-axis for the unit (if new), then build the series
+          // Pass 1 — build Y-axes (runs for every channel that has config info,
+          // regardless of whether live data has arrived yet so axes are always
+          // registered before any series tries to reference them).
+          for (let i = 0; i < channels.length; i++) {
+            const channelLabel = channels[i];
+            const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
+              (id) =>
+                channelIdToPlotInfoRef.current[id]?.label === channelLabel,
+            );
+            if (!channelId) continue;
+            const channelInfo = channelIdToPlotInfoRef.current[channelId];
+            if (!channelInfo) continue;
+
+            const unit = channelInfo.unit || "Value";
+            const color = getChannelColor(channelId);
+
+            if (!unitToAxisMap.has(unit)) {
+              if (unitToAxisMap.size === 0) {
+                unitToAxisMap.set(unit, -1);
+                primaryAxisY = makePrimaryAxisY(unit, color);
+              } else {
+                unitToAxisMap.set(unit, axisY2Array.length);
+                axisY2Array.push(makeSecondaryAxisY(unit, color));
+              }
+            }
+          }
+
+          // Pass 2 — build data series (only for channels whose series object
+          // already exists in activePlotChannelsRef so we never push undefined).
           for (let i = 0; i < channels.length; i++) {
             const channelLabel = channels[i];
             const channelId = Object.keys(channelIdToPlotInfoRef.current).find(
@@ -385,18 +413,6 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
 
             const unit = channelInfo.unit || "Value";
             const color = getChannelColor(channelId);
-
-            // Register the axis the first time this unit is seen
-            if (!unitToAxisMap.has(unit)) {
-              if (unitToAxisMap.size === 0) {
-                unitToAxisMap.set(unit, -1);
-                primaryAxisY = makePrimaryAxisY(unit, color);
-              } else {
-                unitToAxisMap.set(unit, axisY2Array.length);
-                axisY2Array.push(makeSecondaryAxisY(unit, color));
-              }
-            }
-
             const assignedAxisIndex = unitToAxisMap.get(unit);
 
             const seriesClick = (e: any) => {

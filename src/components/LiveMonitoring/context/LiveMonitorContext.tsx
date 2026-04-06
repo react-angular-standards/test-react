@@ -7,6 +7,7 @@ import React, {
   useRef,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -242,7 +243,10 @@ export const LiveMonitoringProvider: React.FC<{
   useEffect(() => {
     if (!isPlotPausedForAnalysis) {
       Object.keys(activePlotChannelsRef.current).forEach((channel) => {
-        activePlotChannelsRef.current[channel].dataPoints = [];
+        // Clear in-place to preserve the array reference captured by CanvasJS
+        // chart options. Assigning a new [] would break the reference and cause
+        // the WS handler to push into a different array than the chart renders.
+        activePlotChannelsRef.current[channel].dataPoints.length = 0;
       });
     }
   }, [isPlotPausedForAnalysis]);
@@ -285,47 +289,65 @@ export const LiveMonitoringProvider: React.FC<{
     [connectionState, getDynamicChannelList, formatAndSendReq, tabUniqueId],
   );
 
+  const contextValue = useMemo(
+    () => ({
+      activeDiscreteChannelGroup,
+      activePlotChannelsRef,
+      activeDiscreteChannelsRef,
+      bufferTimeWindow,
+      connectionState,
+      dataStreamWSRef,
+      enableChartLegend,
+      isStreaming,
+      isRecording,
+      isPlotPausedForAnalysis,
+      availableChannels,
+      channelGroups,
+      tabUniqueId,
+      chartOptions,
+      channelIdToPlotInfoRef,
+      primaryGrpName,
+      selectedSystemIndex,
+      tirggerChart,
+      triggerChannelSync,
+      setActiveDiscreteChannelGroup,
+      setBufferTimeWindow,
+      setConnectionState,
+      setEnableChartLegend,
+      setPrimaryGrpName,
+      setIsStreaming,
+      setIsRecording,
+      setIsPlotPausedForAnalysis,
+      setAvailableChannels,
+      setChannelGroups,
+      setChartOptions,
+      switchDataStreamWSConnection,
+      sendDynamicChannelRequest,
+      setTriggerChart,
+      setTriggerChannelSync,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      activeDiscreteChannelGroup,
+      bufferTimeWindow,
+      connectionState,
+      enableChartLegend,
+      isStreaming,
+      isRecording,
+      isPlotPausedForAnalysis,
+      availableChannels,
+      channelGroups,
+      chartOptions,
+      primaryGrpName,
+      tirggerChart,
+      triggerChannelSync,
+      switchDataStreamWSConnection,
+      sendDynamicChannelRequest,
+    ],
+  );
+
   return (
-    <PlotContext.Provider
-      value={{
-        activeDiscreteChannelGroup,
-        activePlotChannelsRef,
-        activeDiscreteChannelsRef,
-        bufferTimeWindow,
-        connectionState,
-        dataStreamWSRef,
-        enableChartLegend,
-        isStreaming,
-        isRecording,
-        isPlotPausedForAnalysis,
-        availableChannels,
-        channelGroups,
-        tabUniqueId,
-        chartOptions,
-        channelIdToPlotInfoRef,
-        primaryGrpName,
-        selectedSystemIndex,
-        tirggerChart,
-        triggerChannelSync,
-        setActiveDiscreteChannelGroup,
-        setBufferTimeWindow,
-        setConnectionState,
-        setEnableChartLegend,
-        setPrimaryGrpName,
-        setIsStreaming,
-        setIsRecording,
-        setIsPlotPausedForAnalysis,
-        setAvailableChannels,
-        setChannelGroups,
-        setChartOptions,
-        switchDataStreamWSConnection,
-        sendDynamicChannelRequest,
-        setTriggerChart,
-        setTriggerChannelSync,
-      }}
-    >
-      {children}
-    </PlotContext.Provider>
+    <PlotContext.Provider value={contextValue}>{children}</PlotContext.Provider>
   );
 };
 
