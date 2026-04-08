@@ -52,6 +52,7 @@ export const striplineTooltipStyles = `
     max-width: 480px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.35);
     pointer-events: none;
+    user-select: none;
     border: 1px solid rgba(99,102,241,0.35);
   }
   .slt-header {
@@ -61,6 +62,9 @@ export const striplineTooltipStyles = `
     margin-bottom: 8px;
     border-bottom: 1px solid rgba(255,255,255,0.12);
     padding-bottom: 6px;
+    cursor: grab;
+    pointer-events: auto;
+    user-select: none;
   }
   .slt-title {
     font-weight: 700;
@@ -273,6 +277,10 @@ export function useStriplines({
   // ── State / refs owned by this hook ────────────────────────────────────────
   const [allStriplines, setAllStriplines] = useState<AllStriplines>({});
   const nextClickRef = useRef<Record<string, "x1" | "x2">>({});
+  // Per-chart tooltip drag offset in px — {x, y} relative to initial centred position
+  const [tooltipPositions, setTooltipPositions] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
   // Keep a ref so the click handler always reads the latest pause state
   // without needing to be re-created on every render.
   const isPlotPausedRef = useRef(isPlotPausedForAnalysis);
@@ -521,6 +529,7 @@ export function useStriplines({
       if (!hasX1 && !hasX2) return null;
 
       const nextClick = nextClickRef.current[chartId] ?? "x1";
+      const pos = tooltipPositions[chartId] ?? { x: 0, y: 0 };
 
       const allChannelIds = Array.from(
         new Set([
@@ -529,11 +538,39 @@ export function useStriplines({
         ]),
       );
 
+      const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const origX = pos.x;
+        const origY = pos.y;
+        const onMove = (ev: MouseEvent) => {
+          setTooltipPositions((prev) => ({
+            ...prev,
+            [chartId]: {
+              x: origX + ev.clientX - startX,
+              y: origY + ev.clientY - startY,
+            },
+          }));
+        };
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      };
+
       return (
-        <div className="stripline-tooltip-overlay">
+        <div
+          className="stripline-tooltip-overlay"
+          style={{
+            transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)`,
+          }}
+        >
           {/* Header */}
-          <div className="slt-header">
-            <span className="slt-title">📍 Stripline Analysis</span>
+          <div className="slt-header" onMouseDown={handleDragStart}>
+            <span className="slt-title">⠿ Stripline Analysis</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span className="slt-hint">
                 {!hasX1
@@ -673,7 +710,7 @@ export function useStriplines({
         </div>
       );
     },
-    [allStriplines, clearStriplines],
+    [allStriplines, clearStriplines, tooltipPositions, setTooltipPositions],
   );
 
   return {
