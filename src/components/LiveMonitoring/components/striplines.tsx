@@ -528,6 +528,13 @@ export function useStriplines({
 
       if (!hasX1 && !hasX2) return null;
 
+      const chartInst = chartRefs.current[chartId];
+      if (!chartInst?.container) return null;
+
+      const rect = chartInst.container.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const baseTop = rect.top + 8;
+
       const nextClick = nextClickRef.current[chartId] ?? "x1";
       const pos = tooltipPositions[chartId] ?? { x: 0, y: 0 };
 
@@ -565,7 +572,11 @@ export function useStriplines({
         <div
           className="stripline-tooltip-overlay"
           style={{
-            transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)`,
+            position: "fixed",
+            left: `${centerX + pos.x}px`,
+            top: `${baseTop + pos.y}px`,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
           }}
         >
           {/* Header */}

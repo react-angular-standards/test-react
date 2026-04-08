@@ -531,6 +531,9 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
           setIsPlotPausedForAnalysis(true);
         });
       } else {
+        Object.keys(allStriplines).forEach((chartId) => {
+          clearStriplines(chartId);
+        });
         setIsPlotPausedForAnalysis(false);
       }
     }, [
@@ -540,6 +543,8 @@ const Plots = forwardRef<DataChartFunction, LiveMonitoringProps>(
       isPlotPausedForAnalysis,
       refreshTimeRangeRef,
       setIsPlotPausedForAnalysis,
+      allStriplines,
+      clearStriplines,
     ]);
 
     useImperativeHandle(
