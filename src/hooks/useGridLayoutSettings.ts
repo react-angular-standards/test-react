@@ -1,153 +1,121 @@
 /** @format */
 
-import { useCallback, useRef, useState } from "react";
-import { Layout } from "react-grid-layout";
+import { useState, useRef, useCallback } from "react";
+import { LayoutItems } from "../types/PlotDashboard";
+import { PlotOptions } from "../components/LiveMonitoring/ChartSchema";
 
-export interface LayoutItems {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
+interface LayoutSizeInterface {
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
 }
 
-interface PlotOption {
-  id: string;
-  width?: number;
-  height?: number;
-  [key: string]: any;
-}
-
-/**
- * useGridLayoutSettings
- *
- * Manages react-grid-layout state and custom pixel-resize interactions
- * for the Plots dashboard.
- *
- * Returns:
- *  - gridLayout               : current layout array for <GridLayout layout={...}>
- *  - resizeID                 : id of the chart currently being pixel-resized (or null)
- *  - resizeRef                : ref holding drag-start metadata for pixel resize
- *  - buildLayoutFromOptionList: build a GridLayout layout from chartOptions
- *  - handleResizeStart        : onMouseDown handler for the custom resize handle
- *  - handleLayoutChange       : onLayoutChange callback for <GridLayout>
- *  - setGridLayout            : direct setter for gridLayout
- *  - setResizeID              : direct setter for resizeID
- */
 export const useGridLayoutSettings = () => {
   const [gridLayout, setGridLayout] = useState<LayoutItems[]>([]);
   const [resizeID, setResizeID] = useState<string | null>(null);
+  const resizeRef = useRef<LayoutSizeInterface | null>(null);
 
-  /**
-   * Persists the cursor position and chart pixel dimensions at the moment
-   * a custom resize drag begins, so the mousemove handler can compute deltas.
-   */
-  const resizeRef = useRef<{
-    startX: number;
-    startY: number;
-    startWidth: number;
-    startHeight: number;
-    chartId: string;
-  } | null>(null);
-
-  /**
-   * Builds a react-grid-layout layout array from a list of chart option objects.
-   *
-   * Layout strategy:
-   *   - 12-column grid
-   *   - When the channel panel is visible (showChannelSection = true) each chart
-   *     takes half the grid width (w=6), two per row.
-   *   - When the channel panel is hidden each chart takes the full width (w=12),
-   *     one per row.
-   *
-   * @param optionList         Array of chart objects (must each have an `id` field).
-   * @param showChannelSection Whether the right-hand channel settings panel is open.
-   * @returns                  GridLayout-compatible layout array.
-   */
-  const buildLayoutFromOptionList = useCallback(
-    (optionList: PlotOption[], showChannelSection: boolean): LayoutItems[] => {
-      const cols = 12;
-      const w = showChannelSection ? Math.floor(cols / 2) : cols;
-
-      return optionList.map((opt, index) => ({
-        i: opt.id,
-        x: showChannelSection ? (index % 2) * w : 0,
-        y: showChannelSection ? Math.floor(index / 2) * 2 : index * 2,
-        w,
-        h: 2,
-        minW: 2,
-        minH: 1,
-      }));
-    },
-    [],
-  );
-
-  /**
-   * Called on mousedown of the custom pixel-resize handle.
-   * Records the starting cursor position and chart dimensions into resizeRef
-   * and marks which chart is the active resize target.
-   *
-   * @param e          MouseEvent from the resize handle's onMouseDown prop.
-   * @param chartId    Id of the chart being resized.
-   * @param initWidth  Current pixel width of the chart container.
-   * @param initHeight Current pixel height of the chart container.
-   */
   const handleResizeStart = useCallback(
     (
       e: React.MouseEvent,
       chartId: string,
-      initWidth: number,
-      initHeight: number,
-    ) => {
-      e.preventDefault();
+      width: number,
+      height: number,
+    ): void => {
+      e.stopPropagation();
+      setResizeID(chartId);
       resizeRef.current = {
         startX: e.clientX,
         startY: e.clientY,
-        startWidth: initWidth,
-        startHeight: initHeight,
-        chartId,
+        startWidth: width,
+        startHeight: height,
       };
-      setResizeID(chartId);
     },
     [],
   );
 
-  /**
-   * Called by GridLayout's onLayoutChange callback.
-   *
-   * Re-orders the incoming layout so that it matches the order of chartOptions
-   * (preventing drag-reorder from scrambling the options array) and normalises
-   * the shape to LayoutItems.
-   *
-   * @param newLayout          The Layout[] emitted by react-grid-layout.
-   * @param currentOptions     The current chartOptions state array.
-   * @param showChannelSection Whether the channel panel is open.
-   * @returns                  Sorted LayoutItems[] aligned to currentOptions order.
-   */
+  const buildLayoutFromOptionList = useCallback(
+    (layoutOptions: PlotOptions[], showChannelSection: boolean) => {
+      const layoutMaxWidth = showChannelSection ? 0.72 : 1;
+      const totalWidth = window.innerWidth * layoutMaxWidth;
+      const halfWidth = Math.round(totalWidth * 0.5);
+      const quarterWidth = Math.round(totalWidth * 0.25);
+      const threeByForthWidth = Math.round(totalWidth * 0.75);
+
+      const baseRowHeight = window.innerHeight * 0.11 || 120;
+      const adjustedLayout: LayoutItems[] = [];
+      let currentY = 0;
+      let filledRowSize = 0;
+      let rowMaxHeight = 0;
+
+      layoutOptions.forEach((opt) => {
+        // Determine grid columns dynamically based on requested pixel width
+        const widthInCols =
+          quarterWidth >= opt.width
+            ? 3
+            : halfWidth >= opt.width
+              ? 6
+              : threeByForthWidth >= opt.width
+                ? 9
+                : 12;
+
+        // If this item exceeds the 12-column grid row, wrap to the next row
+        if (filledRowSize + widthInCols > 12) {
+          filledRowSize = 0;
+          currentY += rowMaxHeight;
+          rowMaxHeight = 0;
+        }
+
+        const xPos = filledRowSize;
+        filledRowSize += widthInCols;
+
+        // Dynamically calculate grid height using actual window-based rowHeight
+        // Adding 20px padding to ensure CanvasJS fits cleanly inside RGL cell
+        const calHeight = Math.ceil((opt.height + 20) / baseRowHeight);
+        const height = calHeight > 2 ? calHeight : 3;
+        rowMaxHeight = Math.max(rowMaxHeight, height);
+
+        adjustedLayout.push({
+          i: opt.id,
+          x: xPos,
+          y: currentY,
+          w: widthInCols,
+          h: height,
+          isDraggable: true,
+          isResizable: false,
+        });
+
+        if (filledRowSize >= 12) {
+          filledRowSize = 0;
+          currentY += rowMaxHeight;
+          rowMaxHeight = 0;
+        }
+      });
+      return adjustedLayout;
+    },
+    [],
+  );
+
   const handleLayoutChange = useCallback(
     (
-      newLayout: Layout[],
-      currentOptions: PlotOption[],
-      _showChannelSection: boolean,
-    ): LayoutItems[] => {
-      // Preserve the order defined by currentOptions so dragging charts
-      // does not change the options array order.
-      const orderedLayout: LayoutItems[] = currentOptions
-        .map((opt) => newLayout.find((l) => l.i === opt.id))
-        .filter((l): l is Layout => l !== undefined)
-        .map((l) => ({
-          i: l.i,
-          x: l.x,
-          y: l.y,
-          w: l.w,
-          h: l.h,
-          minW: 2,
-          minH: 1,
-        }));
+      newLayout: LayoutItems[],
+      inputOptions: PlotOptions[],
+      showChannelSection: boolean,
+    ) => {
+      const sortedLayout = [...newLayout].sort((a, b) =>
+        a.y === b.y ? a.x - b.x : a.y - b.y,
+      );
+      const layoutOptions = sortedLayout
+        .map((layout) => inputOptions.find((option) => option.id === layout.i))
+        .filter((option): option is PlotOptions => option !== undefined);
+      const adjustedLayout = buildLayoutFromOptionList(
+        layoutOptions,
+        showChannelSection,
+      );
 
-      return orderedLayout;
+      setGridLayout(adjustedLayout);
+      return layoutOptions;
     },
     [],
   );
