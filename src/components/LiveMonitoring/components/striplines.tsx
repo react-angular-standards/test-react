@@ -1,6 +1,7 @@
 /** @format */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { ChartInstance, PlotOptions, SeriesData } from "../types/ChartSchema";
 
 // Inlined here because ConfiguredChannelSchema is not yet on disk.
@@ -225,8 +226,8 @@ export interface UseStriplinesParams {
   chartRefs: React.MutableRefObject<{ [chartId: string]: any }>;
   /** isZoomedRefs from Plots — tracks whether each chart is currently zoomed. */
   isZoomedRefs: React.MutableRefObject<{ [chartId: string]: boolean }>;
-  channelGroups: ChannelGroup[];
-  availableChannels: string[];
+  primaryChannelGroup: ChannelGroup;
+  secondaryChannelGroups: ChannelGroup[];
   channelIdToPlotInfoRef: React.MutableRefObject<{
     [channelId: string]: Option;
   }>;
@@ -267,8 +268,8 @@ export interface UseStriplinesReturn {
 export function useStriplines({
   chartRefs,
   isZoomedRefs,
-  channelGroups,
-  availableChannels,
+  primaryChannelGroup,
+  secondaryChannelGroups,
   channelIdToPlotInfoRef,
   activePlotChannelsRef,
   setChartOptions,
@@ -284,9 +285,16 @@ export function useStriplines({
   // Keep a ref so the click handler always reads the latest pause state
   // without needing to be re-created on every render.
   const isPlotPausedRef = useRef(isPlotPausedForAnalysis);
+
+  // Clear striplines whenever the plot resumes
   useEffect(() => {
     isPlotPausedRef.current = isPlotPausedForAnalysis;
-  }, [isPlotPausedForAnalysis]);
+    if (!isPlotPausedForAnalysis) {
+      Object.keys(allStriplines).forEach((chartId) => {
+        clearStriplines(chartId);
+      });
+    }
+  }, [isPlotPausedForAnalysis, allStriplines, clearStriplines]);
 
   // ── Build a per-channel value snapshot at a given timestamp ────────────────
   const buildChannelSnapshot = useCallback(
@@ -294,10 +302,10 @@ export function useStriplines({
       ts: Date,
       chartId: string,
     ): Record<string, { label: string; value: number | null }> => {
-      const group = channelGroups.find((g) => g.id === chartId);
+      const group = secondaryChannelGroups.find((g) => g.id === chartId);
       const channelLabels: string[] = group
         ? group.channels
-        : availableChannels;
+        : primaryChannelGroup.channels;
 
       const snapshot: Record<string, { label: string; value: number | null }> =
         {};
@@ -316,8 +324,8 @@ export function useStriplines({
     },
     [
       activePlotChannelsRef,
-      availableChannels,
-      channelGroups,
+      primaryChannelGroup,
+      secondaryChannelGroups,
       channelIdToPlotInfoRef,
     ],
   );
@@ -528,12 +536,14 @@ export function useStriplines({
 
       if (!hasX1 && !hasX2) return null;
 
-      const chartInst = chartRefs.current[chartId];
-      if (!chartInst?.container) return null;
-
-      const rect = chartInst.container.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const baseTop = rect.top + 8;
+      // Get chart container position for initial fixed positioning
+      const chartRef = chartRefs.current[chartId];
+      const chart = (chartRef as any)?.chart;
+      const containerRect = chart?.container?.getBoundingClientRect();
+      const baseLeft = containerRect
+        ? containerRect.left + containerRect.width / 2
+        : window.innerWidth / 2;
+      const baseTop = containerRect ? containerRect.top + 8 : 100;
 
       const nextClick = nextClickRef.current[chartId] ?? "x1";
       const pos = tooltipPositions[chartId] ?? { x: 0, y: 0 };
@@ -544,6 +554,12 @@ export function useStriplines({
           ...Object.keys(x2?.channelValues ?? {}),
         ]),
       );
+
+      const groupName =
+        chartId === "main"
+          ? primaryChannelGroup.name
+          : secondaryChannelGroups.find((g) => g.id === chartId)?.name ||
+            "Group";
 
       const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -568,12 +584,12 @@ export function useStriplines({
         window.addEventListener("mouseup", onUp);
       };
 
-      return (
+      return ReactDOM.createPortal(
         <div
           className="stripline-tooltip-overlay"
           style={{
             position: "fixed",
-            left: `${centerX + pos.x}px`,
+            left: `${baseLeft + pos.x}px`,
             top: `${baseTop + pos.y}px`,
             transform: "translateX(-50%)",
             zIndex: 9999,
@@ -581,7 +597,7 @@ export function useStriplines({
         >
           {/* Header */}
           <div className="slt-header" onMouseDown={handleDragStart}>
-            <span className="slt-title">⠿ Stripline Analysis</span>
+            <span className="slt-title">⠿ {groupName}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span className="slt-hint">
                 {!hasX1
@@ -718,10 +734,18 @@ export function useStriplines({
               {nextClick.toUpperCase()}
             </span>
           </div>
-        </div>
+        </div>,
+        document.body,
       );
     },
-    [allStriplines, clearStriplines, tooltipPositions, setTooltipPositions],
+    [
+      allStriplines,
+      chartRefs,
+      clearStriplines,
+      tooltipPositions,
+      primaryChannelGroup,
+      secondaryChannelGroups,
+    ],
   );
 
   return {

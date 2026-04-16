@@ -47,15 +47,14 @@ interface PlotState {
   isStreaming: boolean;
   isPlotPausedForAnalysis: boolean;
   isRecording: boolean;
-  availableChannels: string[];
-  channelGroups: ChannelGroup[];
+  primaryChannelGroup: ChannelGroup;
+  secondaryChannelGroups: ChannelGroup[];
   enableChartLegend: boolean;
   tabUniqueId: string;
   chartOptions: PlotOptions[];
   channelIdToPlotInfoRef: React.MutableRefObject<{
     [channelId: string]: Option;
   }>;
-  primaryGrpName: string;
   selectedSystemIndex: React.MutableRefObject<string>;
   tirggerChart: boolean;
   triggerChannelSync: boolean;
@@ -64,13 +63,14 @@ interface PlotState {
   >;
   setBufferTimeWindow: (tm: number) => void;
   setEnableChartLegend: React.Dispatch<React.SetStateAction<boolean>>;
-  setPrimaryGrpName: (name: string) => void;
   setConnectionState: (state: ConnectionType) => void;
   setIsStreaming: (streaming: boolean) => void;
   setIsRecording: (recording: boolean) => void;
   setIsPlotPausedForAnalysis: React.Dispatch<React.SetStateAction<boolean>>;
-  setAvailableChannels: React.Dispatch<React.SetStateAction<string[]>>;
-  setChannelGroups: React.Dispatch<React.SetStateAction<ChannelGroup[]>>;
+  setPrimaryChannelGroup: React.Dispatch<React.SetStateAction<ChannelGroup>>;
+  setSecondaryChannelGroups: React.Dispatch<
+    React.SetStateAction<ChannelGroup[]>
+  >;
   setChartOptions: React.Dispatch<React.SetStateAction<PlotOptions[]>>;
   switchDataStreamWSConnection: (
     event?: string | React.MouseEvent<HTMLButtonElement>,
@@ -105,9 +105,15 @@ export const LiveMonitoringProvider: React.FC<{
   const [activeDiscreteChannelGroup, setActiveDiscreteChannelGroup] = useState<
     Record<string, Channel[]>
   >({});
-  const [availableChannels, setAvailableChannels] = useState<string[]>([]);
+  const [primaryChannelGroup, setPrimaryChannelGroup] = useState<ChannelGroup>({
+    id: "main",
+    name: "Primary Group",
+    channels: [],
+  });
   const [bufferTimeWindow, setBufferTimeWindow] = useState<number>(5);
-  const [channelGroups, setChannelGroups] = useState<ChannelGroup[]>([]);
+  const [secondaryChannelGroups, setSecondaryChannelGroups] = useState<
+    ChannelGroup[]
+  >([]);
   const [connectionState, setConnectionState] = useState<ConnectionType>("Off");
   const [enableChartLegend, setEnableChartLegend] = useState<boolean>(true);
   const [tirggerChart, setTriggerChart] = useState<boolean>(false);
@@ -115,7 +121,6 @@ export const LiveMonitoringProvider: React.FC<{
   const [isStreaming, setIsStreaming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlotPausedForAnalysis, setIsPlotPausedForAnalysis] = useState(false);
-  const [primaryGrpName, setPrimaryGrpName] = useState<string>("Primary Group");
   const [tabUniqueId] = useState<string>(uuidv4());
 
   const [chartOptions, setChartOptions] = useState<PlotOptions[]>([
@@ -127,12 +132,16 @@ export const LiveMonitoringProvider: React.FC<{
     activePlotChannelsRef.current = {};
     seriesDataRef.current = {};
     channelIdToPlotInfoRef.current = {};
-    setAvailableChannels([]);
-    setChannelGroups([]);
+    setPrimaryChannelGroup({
+      id: "main",
+      name: "Primary Group",
+      channels: [],
+    });
+    setSecondaryChannelGroups([]);
     setChartOptions([
       makePlotOption("main", "Primary Group", INITIAL_CHART_DIMENSIONS),
     ]);
-  }, [setAvailableChannels, setChannelGroups, setChartOptions]);
+  }, [setPrimaryChannelGroup, setSecondaryChannelGroups, setChartOptions]);
 
   const switchDataStreamWSConnection = useCallback(
     (event?: string | React.MouseEvent<HTMLButtonElement>) => {
@@ -254,8 +263,12 @@ export const LiveMonitoringProvider: React.FC<{
   // Reset channel groups and available channels when connection is Off
   useEffect(() => {
     if (connectionState === "Off") {
-      setChannelGroups([]);
-      setAvailableChannels([]);
+      setSecondaryChannelGroups([]);
+      setPrimaryChannelGroup({
+        id: "main",
+        name: "Primary Group",
+        channels: [],
+      });
     }
   }, [connectionState]);
 
@@ -301,12 +314,11 @@ export const LiveMonitoringProvider: React.FC<{
       isStreaming,
       isRecording,
       isPlotPausedForAnalysis,
-      availableChannels,
-      channelGroups,
+      primaryChannelGroup,
+      secondaryChannelGroups,
       tabUniqueId,
       chartOptions,
       channelIdToPlotInfoRef,
-      primaryGrpName,
       selectedSystemIndex,
       tirggerChart,
       triggerChannelSync,
@@ -314,12 +326,11 @@ export const LiveMonitoringProvider: React.FC<{
       setBufferTimeWindow,
       setConnectionState,
       setEnableChartLegend,
-      setPrimaryGrpName,
       setIsStreaming,
       setIsRecording,
       setIsPlotPausedForAnalysis,
-      setAvailableChannels,
-      setChannelGroups,
+      setPrimaryChannelGroup,
+      setSecondaryChannelGroups,
       setChartOptions,
       switchDataStreamWSConnection,
       sendDynamicChannelRequest,
@@ -335,10 +346,9 @@ export const LiveMonitoringProvider: React.FC<{
       isStreaming,
       isRecording,
       isPlotPausedForAnalysis,
-      availableChannels,
-      channelGroups,
+      primaryChannelGroup,
+      secondaryChannelGroups,
       chartOptions,
-      primaryGrpName,
       tirggerChart,
       triggerChannelSync,
       switchDataStreamWSConnection,
