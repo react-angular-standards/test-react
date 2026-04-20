@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DropResult } from "react-beautiful-dnd";
 import GridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
 import { ThreeBarsIcon, TabIcon, LocationIcon } from "@primer/octicons-react";
 import Tooltip from "@mui/material/Tooltip";
 import { ChannelGroup } from "../ConfiguredChannelSchema";
