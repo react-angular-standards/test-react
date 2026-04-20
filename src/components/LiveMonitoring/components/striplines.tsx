@@ -286,15 +286,6 @@ export function useStriplines({
   // without needing to be re-created on every render.
   const isPlotPausedRef = useRef(isPlotPausedForAnalysis);
 
-  // Clear striplines whenever the plot resumes
-  useEffect(() => {
-    isPlotPausedRef.current = isPlotPausedForAnalysis;
-    if (!isPlotPausedForAnalysis) {
-      Object.keys(allStriplines).forEach((chartId) => {
-        clearStriplines(chartId);
-      });
-    }
-  }, [isPlotPausedForAnalysis, allStriplines, clearStriplines]);
 
   // ── Build a per-channel value snapshot at a given timestamp ────────────────
   const buildChannelSnapshot = useCallback(
@@ -369,6 +360,17 @@ export function useStriplines({
   );
 
   // ── Core stripline setter ──────────────────────────────────────────────────
+
+  // Clear striplines whenever the plot resumes
+  useEffect(() => {
+    isPlotPausedRef.current = isPlotPausedForAnalysis;
+    if (!isPlotPausedForAnalysis) {
+      Object.keys(allStriplines).forEach((chartId) => {
+        clearStriplines(chartId);
+      });
+    }
+  }, [isPlotPausedForAnalysis, allStriplines, clearStriplines]);
+
   const applyStriplineAt = useCallback(
     (chartId: string, ts: Date) => {
       // Never place striplines during live streaming — only when paused for analysis.
