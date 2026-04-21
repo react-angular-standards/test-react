@@ -338,7 +338,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   useEffect(() => {
     // const layout = buildLayoutFromOptionList(chartOptions, showChannelSection);
     setGridLayout(
-      buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection),
+      buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection, isPlotPausedForAnalysis),
     );
   }, [buildLayoutFromOptionList, chartStructureKey, showChannelSection]);
 
@@ -880,6 +880,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
               )}
               isDraggable={true}
               isResizable={false}
+              compactType="vertical"
               draggableHandle=".draggable-handle"
               onLayoutChange={(newLayout: LayoutItems[]) => {
                 setChartOptions((options) => {
@@ -897,7 +898,13 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
                 const hasAnyStripline = sl?.x1 !== null || sl?.x2 !== null;
 
                 return (
-                  <div key={chart.id} className="chart-container">
+                  <div key={chart.id} className="chart-container"
+                    style={{
+                      zIndex: resizeID === chart.id ? 10 : 1,
+                      position: "relative",
+                      backgroundColor: "#fff",
+                    }}
+                  >
                     {loading && (
                       <div className="loader-container">
                         <img

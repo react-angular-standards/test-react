@@ -36,7 +36,7 @@ export const useGridLayoutSettings = () => {
   );
 
   const buildLayoutFromOptionList = useCallback(
-    (layoutOptions: PlotOptions[], showChannelSection: boolean) => {
+    (layoutOptions: PlotOptions[], showChannelSection: boolean, isPlotPausedForAnalysis: boolean = false) => {
       const layoutMaxWidth = showChannelSection ? 0.72 : 1;
       const totalWidth = window.innerWidth * layoutMaxWidth;
       const halfWidth = Math.round(totalWidth * 0.5);
@@ -72,7 +72,8 @@ export const useGridLayoutSettings = () => {
 
         // Dynamically calculate grid height using actual window-based rowHeight
         // Adding 20px padding to ensure CanvasJS fits cleanly inside RGL cell
-        const calHeight = Math.ceil((opt.height + 20) / baseRowHeight);
+        const dynamicPadding = isPlotPausedForAnalysis ? 120 : 60;
+        const calHeight = Math.ceil((opt.height + dynamicPadding) / baseRowHeight);
         const height = calHeight > 2 ? calHeight : 3;
         rowMaxHeight = Math.max(rowMaxHeight, height);
 
