@@ -13,8 +13,8 @@ import TextRotationNoneIcon from '@mui/icons-material/TextRotationNone';
 
 import { ConnectionType, useLiveMonitoringContext } from '../context/LiveMonitorContext';
 
-// These components need to be created or imported from the right locations
-// Placeholder components for now
+import Plots from './Plots';
+
 const PageDrawer: React.FC<any> = ({ children, title, openDrawer, onToggleDrawer }) => (
   <div>{openDrawer && children}</div>
 );
@@ -24,7 +24,6 @@ const MenuItem: React.FC<any> = ({ icon, text, onClick, open }) => (
     {icon} {open && text}
   </div>
 );
-const Plots: any = React.forwardRef((props: any, ref) => <div>Plots Component</div>);
 const DiscreteInputOutputTabs: React.FC = () => <div>Discrete Input/Output Tabs</div>;
 const HistoricalData: React.FC = () => <div>Historical Data</div>;
 const AnalogOutputTabs: React.FC = () => <div>Analog Output Tabs</div>;
