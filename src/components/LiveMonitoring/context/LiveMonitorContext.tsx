@@ -78,6 +78,8 @@ interface PlotState {
   sendDynamicChannelRequest: (userName: string) => void;
   setTriggerChart: React.Dispatch<React.SetStateAction<boolean>>;
   setTriggerChannelSync: React.Dispatch<React.SetStateAction<boolean>>;
+  availableChannels: Option[];
+  setAvailableChannels: React.Dispatch<React.SetStateAction<Option[]>>;
 }
 
 const PlotContext = createContext<PlotState | undefined>(undefined);
@@ -122,6 +124,8 @@ export const LiveMonitoringProvider: React.FC<{
   const [isRecording, setIsRecording] = useState(false);
   const [isPlotPausedForAnalysis, setIsPlotPausedForAnalysis] = useState(false);
   const [tabUniqueId] = useState<string>(uuidv4());
+
+  const [availableChannels, setAvailableChannels] = useState<Option[]>([]);
 
   const [chartOptions, setChartOptions] = useState<PlotOptions[]>([
     makePlotOption("main", "Primary Group", INITIAL_CHART_DIMENSIONS),
@@ -336,6 +340,8 @@ export const LiveMonitoringProvider: React.FC<{
       sendDynamicChannelRequest,
       setTriggerChart,
       setTriggerChannelSync,
+      availableChannels,
+      setAvailableChannels,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [

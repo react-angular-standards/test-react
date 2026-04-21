@@ -66,6 +66,7 @@ export const customPlotsStyles = `
   .chart-wrapper { box-sizing: border-box; padding: 20px 30px 80px 20px; width: 100%; overflow: hidden; }
 
   .react-grid-item { transition: all 200ms ease; }
+  .no-transition .react-grid-item { transition: none; }
 
   .react-grid-item.dragging { z-index: 100; }
 

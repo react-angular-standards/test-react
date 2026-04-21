@@ -29,5 +29,5 @@ export const useRecordedLiveData = () => {
     [fetchData],
   );
 
-  return { recordedDataTimeRangeRef, refreshTimeRangeRef, fetchRecordedData };
+  return { recordedDataTimeRangeRef, refreshTimeRangeRef, fetchRecordedData, loading };
 };

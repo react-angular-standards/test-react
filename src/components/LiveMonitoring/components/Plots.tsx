@@ -697,42 +697,53 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
       if (!resizeRef.current || !resizeID) return;
 
       const { startX, startY, startWidth, startHeight } = resizeRef.current;
-      const newWidth = Math.round(
+      const rawWidth = Math.round(
         Math.max(
           300,
           Math.min(window.innerWidth - 65, startWidth + (e.clientX - startX)),
         ),
       );
-      const newHeight = Math.round(
+      const rawHeight = Math.round(
         Math.max(200, Math.min(600, startHeight + (e.clientY - startY) + 50)),
       );
 
-      setChartOptions((prev) =>
-        prev.map((chart) =>
-          chart.id === resizeID
-            ? {
-                ...chart,
-                width: newWidth,
-                height: newHeight,
-                ...(chart.options && {
-                  options: {
-                    ...chart.options,
-                    width: newWidth,
-                    height: newHeight - 70,
-                  },
-                }),
-              }
-            : chart,
-        ),
+      // Snap height to grid-row increments so chart-wrapper never overflows its cell
+      const rowHeight = window.innerHeight * 0.11;
+      const dynamicPadding = isPlotPausedForAnalysis ? 120 : 60;
+      const targetRows = Math.max(3, Math.ceil((rawHeight + dynamicPadding) / rowHeight));
+      const snappedHeight = Math.round(targetRows * rowHeight - dynamicPadding);
+
+      const updatedOptions = chartOptionsRef.current.map((chart) =>
+        chart.id === resizeID
+          ? {
+              ...chart,
+              width: rawWidth,
+              height: snappedHeight,
+              ...(chart.options && {
+                options: {
+                  ...chart.options,
+                  width: rawWidth,
+                  height: snappedHeight - 70,
+                },
+              }),
+            }
+          : chart,
+      );
+      setChartOptions(updatedOptions);
+      setGridLayout(
+        buildLayoutFromOptionList(updatedOptions, showChannelSection, isPlotPausedForAnalysis),
       );
     },
-    [resizeID, resizeRef, setChartOptions],
+    [resizeID, resizeRef, chartOptionsRef, setChartOptions, setGridLayout, buildLayoutFromOptionList, showChannelSection, isPlotPausedForAnalysis],
   );
 
   const handleResizeEnd = useCallback(() => {
     setResizeID(null);
     resizeRef.current = null;
-  }, [resizeRef, setResizeID]);
+    setGridLayout(
+      buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection, isPlotPausedForAnalysis),
+    );
+  }, [resizeRef, setResizeID, setGridLayout, buildLayoutFromOptionList, chartOptionsRef, showChannelSection, isPlotPausedForAnalysis]);
 
   useEffect(() => {
     if (resizeID) {
@@ -870,7 +881,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
         <div className={showChannelSection ? "col-9" : "col-12"} ref={divRef}>
           <div className="row plot-margin">
             <GridLayout
-              className="layout"
+              className={resizeID ? "layout no-transition" : "layout"}
               layout={gridLayout}
               cols={12}
               rowHeight={window.innerHeight * 0.11}
