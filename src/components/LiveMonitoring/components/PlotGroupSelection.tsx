@@ -1,7 +1,7 @@
 /** @format */
 
 import React, { useMemo, useRef } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { MenuItem, Select } from '@mui/material';
 import { ThreeBarsIcon, GraphIcon, GrabberIcon } from '@primer/octicons-react';
 import { ChannelGroup } from '../types/ConfiguredChannelSchema';

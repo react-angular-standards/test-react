@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CanvasJSChart } from 'canvasjs-react-charts';
 import { v4 as uuidv4 } from 'uuid';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { ThreeBarsIcon } from '@primer/octicons-react';
