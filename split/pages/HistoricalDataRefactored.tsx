@@ -152,6 +152,18 @@ const HistoricalData: React.FC = () => {
 
     setError(null);
     handleTimeChange(testName, configName, field, clamped);
+
+    // Re-fetch cards & channels with updated time range
+    const newStart = field === "startTime" ? clamped : config?.startTime;
+    const newEnd   = field === "endTime"   ? clamped : config?.endTime;
+    fetchTestConfigDetails(testName, configName, newStart, newEnd, true).then((result) => {
+      if (result) {
+        updateCardSelections(testName, configName, result.cards, {
+          startTime: result.startTime,
+          endTime: result.endTime,
+        });
+      }
+    });
   };
 
   // Load data

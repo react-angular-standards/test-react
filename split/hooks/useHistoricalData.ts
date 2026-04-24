@@ -96,10 +96,11 @@ const useHistoricalData = (apiBase: string) => {
     testName: string,
     configName: string,
     startTime?: Dayjs | null,
-    endTime?: Dayjs | null
+    endTime?: Dayjs | null,
+    forceRefresh = false
   ) => {
     const key = `${testName}_${configName}`;
-    if (!cards[key]) {
+    if (!cards[key] || forceRefresh) {
       try {
         let url = `${apiBase}/test-config-details?TestName=${encodeURIComponent(
           testName
