@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import dayjs from "dayjs";
+import dayjs, { Dayjs } from "dayjs";
 import {
   Test,
   TestSelection,
@@ -12,12 +12,18 @@ import {
   CustomQueryRequest,
 } from "../types/historicalData.types";
 
+export interface ConfigTimeRange {
+  min: Dayjs;
+  max: Dayjs;
+}
+
 const useHistoricalData = (apiBase: string) => {
   const [tests, setTests] = useState<Test[]>([]);
   const [configs, setConfigs] = useState<Record<string, string[]>>({});
   const [cards, setCards] = useState<Record<string, string[]>>({});
   const [channels, setChannels] = useState<Record<string, number[]>>({});
   const [allChannels, setAllChannels] = useState<number[]>([]);
+  const [configTimeRanges, setConfigTimeRanges] = useState<Record<string, ConfigTimeRange | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,15 +65,49 @@ const useHistoricalData = (apiBase: string) => {
     }
   };
 
-  const fetchTestConfigDetails = async (testName: string, configName: string) => {
+  const fetchConfigTimeRange = async (
+    testName: string,
+    configName: string
+  ): Promise<ConfigTimeRange | null> => {
+    const key = `${testName}_${configName}`;
+    try {
+      const response = await fetch(`${apiBase}/test-config-time-range`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ TestName: testName, ConfigName: configName }),
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      // API returns startTime / endTime (not testStartTime/testEndTime)
+      if (!data.startTime || !data.endTime) return null;
+      const range: ConfigTimeRange = {
+        min: dayjs(data.startTime),
+        max: dayjs(data.endTime),
+      };
+      setConfigTimeRanges((prev) => ({ ...prev, [key]: range }));
+      return range;
+    } catch {
+      setError(`Failed to fetch time range for ${testName} - ${configName}.`);
+      return null;
+    }
+  };
+
+  const fetchTestConfigDetails = async (
+    testName: string,
+    configName: string,
+    startTime?: Dayjs | null,
+    endTime?: Dayjs | null
+  ) => {
     const key = `${testName}_${configName}`;
     if (!cards[key]) {
       try {
-        const response = await fetch(
-          `${apiBase}/test-config-details?TestName=${encodeURIComponent(
-            testName
-          )}&ConfigName=${encodeURIComponent(configName)}`,
-          {
+        let url = `${apiBase}/test-config-details?TestName=${encodeURIComponent(
+          testName
+        )}&ConfigName=${encodeURIComponent(configName)}`;
+        // API accepts startTime / endTime as query params
+        if (startTime) url += `&startTime=${encodeURIComponent(startTime.toISOString())}`;
+        if (endTime) url += `&endTime=${encodeURIComponent(endTime.toISOString())}`;
+        const response = await fetch(url, {
             method: "GET",
             headers: { Accept: "application/json" },
           }
@@ -186,10 +226,12 @@ const useHistoricalData = (apiBase: string) => {
     cards,
     channels,
     allChannels,
+    configTimeRanges,
     loading,
     error,
     setError,
     fetchConfigs,
+    fetchConfigTimeRange,
     fetchTestConfigDetails,
     fetchFilteredData,
     fetchCustomQueryData,

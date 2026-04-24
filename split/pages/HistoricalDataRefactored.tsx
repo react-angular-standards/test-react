@@ -18,7 +18,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { UrlConstant } from "../../component/Util/UrlConstans";
 import { muiTheme } from "../theme/muiTheme";
 import { exportToCSV } from "../utils/csvExport";
-import useHistoricalData from "../hooks/useHistoricalData";
+import useHistoricalData, { ConfigTimeRange } from "../hooks/useHistoricalData";
 import useTestSelections from "../hooks/useTestSelections";
 import DataTable from "../components/DataTable";
 import ChartView from "../components/ChartView";
@@ -48,10 +48,12 @@ const HistoricalData: React.FC = () => {
     cards,
     channels,
     allChannels,
+    configTimeRanges,
     loading,
     error,
     setError,
     fetchConfigs,
+    fetchConfigTimeRange,
     fetchTestConfigDetails,
     fetchFilteredData,
   } = useHistoricalData(apiBase);
@@ -70,23 +72,40 @@ const HistoricalData: React.FC = () => {
     clearAllSelections,
   } = useTestSelections(tests);
 
-  // Fetch configs when test is selected
+  // Fetch configs and their time ranges when a test is selected
   useEffect(() => {
     const selectedTests = testSelections.filter((sel) => sel.isSelected);
     selectedTests.forEach((sel) => {
       if (!configs[sel.testName]) {
-        fetchConfigs(sel.testName).then((configNames) => {
+        fetchConfigs(sel.testName).then((configNames: string[]) => {
           updateConfigSelections(sel.testName, configNames);
+          // Fetch time range for each config so date pickers get min/max and defaults
+          configNames.forEach((configName: string) => {
+            const key = `${sel.testName}_${configName}`;
+            if (!configTimeRanges[key]) {
+              fetchConfigTimeRange(sel.testName, configName).then((range) => {
+                if (range) {
+                  // Set fetched time range as the default selection for this config
+                  updateConfigSelections(sel.testName, configNames, {
+                    startTime: range.min,
+                    endTime: range.max,
+                  });
+                }
+              });
+            }
+          });
         });
       }
     });
   }, [testSelections]);
 
-  // Handle config accordion toggle with data fetch
+  // Handle config accordion toggle — fetch card/channel details, pass selected time range
   const handleConfigToggle = (testName: string, configName: string) => {
     handleConfigAccordionToggle(testName, configName);
     if (!cards[`${testName}_${configName}`]) {
-      fetchTestConfigDetails(testName, configName).then((result) => {
+      const sel = testSelections.find((s) => s.testName === testName);
+      const config = sel?.configSelections.find((c) => c.configName === configName);
+      fetchTestConfigDetails(testName, configName, config?.startTime, config?.endTime).then((result) => {
         if (result) {
           updateCardSelections(testName, configName, result.cards, {
             startTime: result.startTime,
@@ -95,6 +114,44 @@ const HistoricalData: React.FC = () => {
         }
       });
     }
+  };
+
+  // Validated time change: enforce startTime <= endTime and stay within config range
+  const handleValidatedTimeChange = (
+    testName: string,
+    configName: string,
+    field: "startTime" | "endTime",
+    value: import("dayjs").Dayjs | null
+  ) => {
+    const key = `${testName}_${configName}`;
+    const range = configTimeRanges[key] ?? null;
+    const sel = testSelections.find((s) => s.testName === testName);
+    const config = sel?.configSelections.find((c) => c.configName === configName);
+
+    if (!value) {
+      handleTimeChange(testName, configName, field, value);
+      return;
+    }
+
+    // Clamp within valid range boundaries
+    let clamped = value;
+    if (range) {
+      if (clamped.isBefore(range.min)) clamped = range.min;
+      if (clamped.isAfter(range.max)) clamped = range.max;
+    }
+
+    // Cross-field validation
+    if (field === "startTime" && config?.endTime && clamped.isAfter(config.endTime)) {
+      setError("Start time cannot be after end time.");
+      return;
+    }
+    if (field === "endTime" && config?.startTime && clamped.isBefore(config.startTime)) {
+      setError("End time cannot be before start time.");
+      return;
+    }
+
+    setError(null);
+    handleTimeChange(testName, configName, field, clamped);
   };
 
   // Load data
@@ -327,13 +384,14 @@ const HistoricalData: React.FC = () => {
               selectedTestsCount={selectedTestsCount}
               cards={cards}
               channels={channels}
+              configTimeRanges={configTimeRanges}
               error={error}
               onTestSelect={handleTestSelect}
               onTestToggle={handleTestToggle}
               onTestAccordionToggle={handleTestAccordionToggle}
               onConfigAccordionToggle={handleConfigToggle}
               onChannelSelect={handleChannelSelect}
-              onTimeChange={handleTimeChange}
+              onTimeChange={handleValidatedTimeChange}
               onSubmit={handleSubmit}
               onClear={handleClear}
               onFetchTestConfigDetails={fetchTestConfigDetails}

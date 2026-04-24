@@ -8,6 +8,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { TestSelection, Test, SelectOption } from "../../types/historicalData.types";
+import { ConfigTimeRange } from "../../hooks/useHistoricalData";
 import CustomSelect from "../../../component/Widgets/CustomSelect";
 import FilterTestAccordion from "./FilterTestAccordion";
 
@@ -21,6 +22,7 @@ interface FilterDrawerProps {
   selectedTestsCount: number;
   cards: Record<string, string[]>;
   channels: Record<string, number[]>;
+  configTimeRanges: Record<string, ConfigTimeRange | null>;
   error: string | null;
   onTestSelect: (selected: any, action: any) => void;
   onTestToggle: (testName: string) => void;
@@ -43,6 +45,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   selectedTestsCount,
   cards,
   channels,
+  configTimeRanges,
   error,
   onTestSelect,
   onTestToggle,
@@ -130,6 +133,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                       test={test}
                       cards={cards}
                       channels={channels}
+                      configTimeRanges={configTimeRanges}
                       onTestToggle={onTestToggle}
                       onTestAccordionToggle={onTestAccordionToggle}
                       onConfigAccordionToggle={onConfigAccordionToggle}
