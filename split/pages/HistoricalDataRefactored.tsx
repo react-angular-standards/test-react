@@ -85,8 +85,8 @@ const HistoricalData: React.FC = () => {
               fetchConfigTimeRange(sel.testName, configName).then((range) => {
                 if (range) {
                   // If total range <= 1 min use full range, otherwise default to last 1 min
-                  const totalMinutes = range.max.diff(range.min, "minute");
-                  const defaultStart = totalMinutes <= 1 ? range.min : range.max.subtract(1, "minute");
+                  const totalSeconds = range.max.diff(range.min, "second");
+                  const defaultStart = totalSeconds <= 20 ? range.min : range.max.subtract(20, "second");
                   const defaultEnd   = range.max;
                   handleTimeChange(sel.testName, configName, "startTime", defaultStart);
                   handleTimeChange(sel.testName, configName, "endTime",   defaultEnd);
