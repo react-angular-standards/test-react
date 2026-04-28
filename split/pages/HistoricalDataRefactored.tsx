@@ -79,17 +79,17 @@ const HistoricalData: React.FC = () => {
       if (!configs[sel.testName]) {
         fetchConfigs(sel.testName).then((configNames: string[]) => {
           updateConfigSelections(sel.testName, configNames);
-          // Fetch time range for each config so date pickers get min/max and defaults
           configNames.forEach((configName: string) => {
             const key = `${sel.testName}_${configName}`;
             if (!configTimeRanges[key]) {
               fetchConfigTimeRange(sel.testName, configName).then((range) => {
                 if (range) {
-                  // Set fetched time range as the default selection for this config
-                  updateConfigSelections(sel.testName, configNames, {
-                    startTime: range.min,
-                    endTime: range.max,
-                  });
+                  // If total range <= 1 min use full range, otherwise default to last 1 min
+                  const totalMinutes = range.max.diff(range.min, "minute");
+                  const defaultStart = totalMinutes <= 1 ? range.min : range.max.subtract(1, "minute");
+                  const defaultEnd   = range.max;
+                  handleTimeChange(sel.testName, configName, "startTime", defaultStart);
+                  handleTimeChange(sel.testName, configName, "endTime",   defaultEnd);
                 }
               });
             }
