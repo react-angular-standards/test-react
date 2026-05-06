@@ -44,7 +44,7 @@ import {
   makePlotOption,
   CHANNEL_COLORS,
 } from "../config/chartConfig";
-import { striplineTooltipStyles, useStriplines } from "./striplines";
+import { Stripline, StriplineHandle } from "./striplines";
 
 export interface DataChartFunction {
   updateChartDataOption: () => void;
@@ -121,42 +121,33 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
     return channelColorMapRef.current[channelId];
   }, []);
 
-  // ── Stripline logic (state, callbacks, tooltip renderer) ─────────────────
-  const {
-    allStriplines,
-    nextClickRef,
-    applyStriplineAtRef,
-    clearStriplines,
-    handleChartRef,
-    renderStriplineTooltip,
-  } = useStriplines({
-    chartRefs,
-    isZoomedRefs,
-    primaryChannelGroup,
-    secondaryChannelGroups,
-    channelIdToPlotInfoRef,
-    activePlotChannelsRef,
-    setChartOptions,
-    isPlotPausedForAnalysis,
-  });
+  const striplineRefs = useRef<Record<string, StriplineHandle | null>>({});
 
-  // ── Attach chart-level click handler (fires on empty-area clicks too) ──────
   const attachChartClickHandler = useCallback((chartId: string) => {
-    const chartInst = (chartRefs.current[chartId] as any)?.chart as
-      | (ChartInstance & { render: () => void })
-      | undefined;
+    const chartInst = (chartRefs.current[chartId] as any)?.chart;
     if (!chartInst?.options) return;
 
-    (chartInst.options as any).click = (e: any) => {
-      const ts: Date | null = e.axisX?.[0] ? new Date(e.axisX[0].value) : null;
-      if (!ts || isNaN(ts.getTime())) return;
-      // applyStriplineAtRef.current(chartId, ts);
+    chartInst.options.click = (e: any) => {
+      if (!isPlotPausedForAnalysis) return;
+      const axis = (e.chart ?? chartInst).axisX?.[0];
+      if (!axis) return;
+      const xValue = axis.convertPixelToValue(e.x);
+      if (xValue == null || isNaN(xValue)) return;
+      const ts = new Date(xValue);
+      if (isNaN(ts.getTime())) return;
+      striplineRefs.current[chartId]?.applyStriplineAt(ts);
     };
-
     chartInst.render();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isPlotPausedForAnalysis]);
 
+  const handleChartRef = useCallback((chartId: string, chartInst: any) => {
+    chartRefs.current[chartId] = chartInst as any;
+    if (chartInst) {
+      setTimeout(() => attachChartClickHandler(chartId), 0);
+    }
+  }, [attachChartClickHandler]);
+
+  
   const chartStructureKey = useMemo(
     () => chartOptions.map((c) => `${c.id}-${c.width}-${c.height}`).join(","),
     [chartOptions],
@@ -177,11 +168,9 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
             e.axisX[0].viewportMaximum != null;
           isZoomedRefs.current[chartId] = isZoomed;
         };
-        // Attach click handler
-        attachChartClickHandler(chartId);
-      }
+              }
     });
-  }, [attachChartClickHandler]);
+  }, []);
 
   const handlePlotChannelSelect = useCallback(
     (selectedChannelIds: string[]) => {
@@ -455,7 +444,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
           }
           const seriesClick = (e: any) => {
             const ts = new Date(e.dataPoint.x);
-            applyStriplineAtRef.current(chart.id, ts);
+            striplineRefs.current[chart.id]?.applyStriplineAt(ts);
           };
           const seriesEntry =
             assignedAxisIndex === -1
@@ -555,8 +544,8 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   );
 
   const updatePlotsWithRecordedData = useCallback(
-    async (id: string, value: number[]) => {
-      const utcString = new Date(value[0]).toISOString();
+    async (id: string, startMs: number) => {
+      const utcString = new Date(startMs).toISOString();
       const recordedData = await fetchRecordedData(utcString, 10);
       applyRecordedData(recordedData);
     },
@@ -859,8 +848,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   return (
     <>
       <style>{customPlotsStyles}</style>
-      <style>{striplineTooltipStyles}</style>
-
+      
       <div className="main-content row position-relative">
         {!showChannelSection && (
           <div className="col-12">
@@ -905,9 +893,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
               }}
             >
               {chartOptions.map((chart) => {
-                const sl = allStriplines[chart.id];
-                const hasAnyStripline = sl?.x1 !== null || sl?.x2 !== null;
-
+                
                 return (
                   <div key={chart.id} className="chart-container"
                     style={{
@@ -974,16 +960,25 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
                         }
                         options={chart.options}
                       />
-                      {isPlotPausedForAnalysis &&
-                        renderStriplineTooltip(chart.id)}
+                      {isPlotPausedForAnalysis && (
+                        <Stripline
+                          ref={(el) => { striplineRefs.current[chart.id] = el; }}
+                          chartId={chart.id}
+                          chartRef={{
+                            get current() {
+                              return chartRefs.current[chart.id];
+                            },
+                            set current(val) {
+                              chartRefs.current[chart.id] = val;
+                            },
+                          }}
+                        />
+                      )}
                       {isPlotPausedForAnalysis && (
                         <span className="time-range-handle">
                           <CustomSlider
                             id={chart.id}
-                            initValue={[
-                              recordedDataTimeRangeRef.current[1] - 5000,
-                              recordedDataTimeRangeRef.current[1],
-                            ]}
+                            initValue={recordedDataTimeRangeRef.current[1] - 10000}
                             range={recordedDataTimeRangeRef.current}
                             onChange={updatePlotsWithRecordedData}
                           />
