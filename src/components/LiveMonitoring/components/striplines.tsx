@@ -450,8 +450,14 @@ export const Stripline = forwardRef<StriplineHandle, StriplineProps>(
                 <th style={{ ...striplineTooltipStyles.th, color: "#60a5fa" }}>
                   X2 {state.x2 ? fmt(state.x2.timestamp) : "--"}
                 </th>
-                <th style={{ ...striplineTooltipStyles.th, color: "#f472b6" }}>
-                  ΔX {fmtDiff(state.x1?.timestamp, state.x2?.timestamp)}
+                <th style={{ ...striplineTooltipStyles.th, color: "#f59e0b" }}>
+                  Diff {fmtDiff(state.x1?.timestamp, state.x2?.timestamp)}
+                </th>
+                <th style={{ ...striplineTooltipStyles.th, color: "#fb923c" }}>
+                  Total
+                </th>
+                <th style={{ ...striplineTooltipStyles.th, color: "#c084fc" }}>
+                  Avg
                 </th>
               </tr>
             </thead>
@@ -465,6 +471,10 @@ export const Stripline = forwardRef<StriplineHandle, StriplineProps>(
                   chId;
                 const diff =
                   v1 != null && v2 != null ? Math.abs(v2 - v1) : null;
+                const total = 
+                  v1 != null && v2 != null ? v1 + v2 : null;
+                const avg = 
+                  v1 != null && v2 != null ? (v1 + v2) / 2 : null;
 
                 return (
                   <tr key={chId} style={striplineTooltipStyles.tr}>
@@ -486,10 +496,26 @@ export const Stripline = forwardRef<StriplineHandle, StriplineProps>(
                     <td
                       style={{
                         ...striplineTooltipStyles.td,
-                        color: "#f472b6",
+                        color: "#f59e0b",
                       }}
                     >
                       {fmtNum(diff)}
+                    </td>
+                    <td
+                      style={{
+                        ...striplineTooltipStyles.td,
+                        color: "#fb923c",
+                      }}
+                    >
+                      {fmtNum(total)}
+                    </td>
+                    <td
+                      style={{
+                        ...striplineTooltipStyles.td,
+                        color: "#c084fc",
+                      }}
+                    >
+                      {fmtNum(avg)}
                     </td>
                   </tr>
                 );
