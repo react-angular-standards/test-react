@@ -9,6 +9,9 @@ import React, {
 import { createPortal } from "react-dom";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import { useLiveMonitoringContext } from "../context/LiveMonitorContext";
+import { striplineTooltipStyles } from "./striplineStyles";
+import { fmt, fmtDiff, fmtNum, findClosestValue } from "./striplineHelpers";
+
 
 // --- Interfaces ---
 export interface Option {
@@ -42,144 +45,6 @@ export interface StriplineHandle {
   applyStriplineAt: (ts: Date) => void;
   clearStriplines: () => void;
 }
-
-// --- Constants & Styles ---
-const striplineTooltipStyles: Record<string, React.CSSProperties> = {
-  container: {
-    position: "absolute",
-    backgroundColor: "#0f172a",
-    color: "#f8fafc",
-    borderRadius: "8px",
-    padding: "12px",
-    boxShadow:
-      "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
-    border: "1px solid #334155",
-    fontFamily:
-      "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-    fontSize: "12px",
-    width: "max-content",
-    minWidth: "320px",
-    pointerEvents: "auto",
-    userSelect: "none",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "12px",
-    paddingBottom: "8px",
-    borderBottom: "1px solid #334155",
-    cursor: "default",
-  },
-  icon: {
-    color: "#94a3b8",
-    fontSize: "14px",
-    cursor: "grab",
-  },
-  title: {
-    fontWeight: 600,
-    fontSize: "13px",
-    color: "#e2e8f0",
-  },
-  clearBtn: {
-    background: "none",
-    border: "none",
-    color: "#94a3b8",
-    cursor: "pointer",
-    fontSize: "14px",
-    padding: "4px",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tableWrapper: {
-    maxHeight: "200px",
-    overflowY: "auto",
-    paddingRight: "4px",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    textAlign: "left",
-  },
-  th: {
-    padding: "6px 8px",
-    fontSize: "11px",
-    fontWeight: 600,
-    color: "#94a3b8",
-    borderBottom: "1px solid #334155",
-    position: "sticky",
-    top: 0,
-    backgroundColor: "#0f172a",
-    zIndex: 1,
-  },
-  tr: {
-    borderBottom: "1px solid #1e293b",
-  },
-  td: {
-    padding: "6px 8px",
-    color: "#cbd5e1",
-    fontSize: "12px",
-    fontVariantNumeric: "tabular-nums",
-  },
-  footer: {
-    marginTop: "12px",
-    paddingTop: "8px",
-    borderTop: "1px solid #334155",
-    display: "flex",
-    justifyContent: "center",
-  },
-};
-
-// --- Utilities ---
-const fmt = (d: Date | null | undefined): string => {
-  if (!d) return "--";
-  return d.toISOString().substring(11, 23); // HH:mm:ss.SSS
-};
-
-const fmtDiff = (
-  d1: Date | null | undefined,
-  d2: Date | null | undefined,
-): string => {
-  if (!d1 || !d2) return "--";
-  const diffMs = Math.abs(d2.getTime() - d1.getTime());
-  const s = Math.floor(diffMs / 1000);
-  const ms = diffMs % 1000;
-  return `${s}.${ms.toString().padStart(3, "0")}s`;
-};
-
-const fmtNum = (n: number | null | undefined): string => {
-  if (n == null) return "--";
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-};
-
-const findClosestValue = (
-  dataPoints: { x: number | Date; y: number }[],
-  ts: Date,
-): number | null => {
-  if (!dataPoints || dataPoints.length === 0) return null;
-  const targetTime = ts.getTime();
-
-  let closest = dataPoints[0];
-  let minDiff = Math.abs(
-    (closest.x instanceof Date ? closest.x.getTime() : closest.x) - targetTime,
-  );
-
-  for (let i = 1; i < dataPoints.length; i++) {
-    const pt = dataPoints[i];
-    const ptTime = pt.x instanceof Date ? pt.x.getTime() : pt.x;
-    const diff = Math.abs(ptTime - targetTime);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closest = pt;
-    }
-  }
-  return closest.y;
-};
 
 export const Stripline = forwardRef<StriplineHandle, StriplineProps>(
   ({ chartId, chartRef, isZoomedRef }, ref) => {
