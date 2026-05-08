@@ -126,29 +126,36 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
 
     const tmpSelected = [...selected];
     const newSelectedChannels: Option[] = [];
-    let changesDetected = false;
 
     tmpSelected.forEach((opt) => {
       if (opt.isSelectAll) {
         availableOptionListToSelect.forEach((availableOpt: Option) => {
-          console.log("availableOpt", availableOpt);
-
           if (
             availableOpt.cardId === opt.cardId &&
             !availableOpt.isSelectAll &&
             !availableOpt.isCard
           ) {
-            newSelectedChannels.push(availableOpt);
-            changesDetected = true;
+            if (!newSelectedChannels.some((o) => o.value === availableOpt.value)) {
+              newSelectedChannels.push(availableOpt);
+            }
           }
         });
       } else {
-        console.log("opt", opt);
-        newSelectedChannels.push(opt);
-        changesDetected = true;
+        if (!newSelectedChannels.some((o) => o.value === opt.value)) {
+          newSelectedChannels.push(opt);
+        }
       }
     });
-    setIsChannelListChanged(changesDetected);
+
+    const newIds = newSelectedChannels.map((opt) => String(opt.value)).sort();
+    const currentIds = Object.keys(channelIdToPlotInfoRef.current).sort();
+
+    const isChanged =
+      newIds.length !== currentIds.length ||
+      newIds.some((id, index) => id !== currentIds[index]);
+
+    setIsChannelListChanged(isChanged);
+
     setSelectedOptions(
       newSelectedChannels.sort((c1, c2) =>
         c1.label.localeCompare(c2.channelName),
@@ -242,18 +249,16 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
                     : "Select channels"
             }
             classNamePrefix="select"
-            isDisabled={!!error || connectionStatus === "Off"}
+            isDisabled={!!error}
           />
         </div>
       </div>
       <div className="col-md-12 mt-2 d-flex align-items-center justify-content-end">
         <button
           onClick={handleStreamButtonClick}
-          disabled={
-            connectionStatus === "Off" || (isStreaming && !isChannelListChanged)
-          }
+          disabled={isStreaming && !isChannelListChanged}
           className={`btn btn-sm me-2 ${
-            connectionStatus === "Off" || (isStreaming && !isChannelListChanged)
+            isStreaming && !isChannelListChanged
               ? "btn-secondary disabled"
               : isStreaming
                 ? "btn-warning"
@@ -261,8 +266,7 @@ const CascadingMultiSelect: React.FC<CascadingMultiSelectProps> = ({
           }`}
           style={{
             cursor:
-              connectionStatus === "Off" ||
-              (isStreaming && !isChannelListChanged)
+              isStreaming && !isChannelListChanged
                 ? "not-allowed"
                 : "pointer",
           }}
