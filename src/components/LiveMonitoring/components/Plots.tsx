@@ -15,6 +15,7 @@ import React, {
 import CanvasJSReact from "@canvasjs/react-charts";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
+import TuneIcon from "@mui/icons-material/Tune";
 
 import CascadingMultiSelect from "./ChannelSelection";
 import { useLiveMonitoringContext } from "../../context/LiveMonitorContext";
@@ -45,6 +46,7 @@ import {
   CHANNEL_COLORS,
 } from "../config/chartConfig";
 import { Stripline, StriplineHandle } from "./striplines";
+import { AxisRangeDialog } from "./AxisRangeDialog";
 
 export interface DataChartFunction {
   updateChartDataOption: () => void;
@@ -94,6 +96,9 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   const [isUpdateRecordingRequired, setIsUpdateRecordingRequired] =
     useState(false);
   const [showChannelSection, setShowChannelSection] = useState(false);
+  const [axisRangeOpenChartId, setAxisRangeOpenChartId] = useState<
+    string | null
+  >(null);
 
   const {
     recordedDataTimeRangeRef,
@@ -123,31 +128,36 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
 
   const striplineRefs = useRef<Record<string, StriplineHandle | null>>({});
 
-  const attachChartClickHandler = useCallback((chartId: string) => {
-    const chartInst = (chartRefs.current[chartId] as any)?.chart;
-    if (!chartInst?.options) return;
+  const attachChartClickHandler = useCallback(
+    (chartId: string) => {
+      const chartInst = (chartRefs.current[chartId] as any)?.chart;
+      if (!chartInst?.options) return;
 
-    chartInst.options.click = (e: any) => {
-      if (!isPlotPausedForAnalysis) return;
-      const axis = (e.chart ?? chartInst).axisX?.[0];
-      if (!axis) return;
-      const xValue = axis.convertPixelToValue(e.x);
-      if (xValue == null || isNaN(xValue)) return;
-      const ts = new Date(xValue);
-      if (isNaN(ts.getTime())) return;
-      striplineRefs.current[chartId]?.applyStriplineAt(ts);
-    };
-    chartInst.render();
-  }, [isPlotPausedForAnalysis]);
+      chartInst.options.click = (e: any) => {
+        if (!isPlotPausedForAnalysis) return;
+        const axis = (e.chart ?? chartInst).axisX?.[0];
+        if (!axis) return;
+        const xValue = axis.convertPixelToValue(e.x);
+        if (xValue == null || isNaN(xValue)) return;
+        const ts = new Date(xValue);
+        if (isNaN(ts.getTime())) return;
+        striplineRefs.current[chartId]?.applyStriplineAt(ts);
+      };
+      chartInst.render();
+    },
+    [isPlotPausedForAnalysis],
+  );
 
-  const handleChartRef = useCallback((chartId: string, chartInst: any) => {
-    chartRefs.current[chartId] = chartInst as any;
-    if (chartInst) {
-      setTimeout(() => attachChartClickHandler(chartId), 0);
-    }
-  }, [attachChartClickHandler]);
+  const handleChartRef = useCallback(
+    (chartId: string, chartInst: any) => {
+      chartRefs.current[chartId] = chartInst as any;
+      if (chartInst) {
+        setTimeout(() => attachChartClickHandler(chartId), 0);
+      }
+    },
+    [attachChartClickHandler],
+  );
 
-  
   const chartStructureKey = useMemo(
     () => chartOptions.map((c) => `${c.id}-${c.width}-${c.height}`).join(","),
     [chartOptions],
@@ -168,7 +178,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
             e.axisX[0].viewportMaximum != null;
           isZoomedRefs.current[chartId] = isZoomed;
         };
-              }
+      }
     });
   }, []);
 
@@ -327,7 +337,11 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   useEffect(() => {
     // const layout = buildLayoutFromOptionList(chartOptions, showChannelSection);
     setGridLayout(
-      buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection, isPlotPausedForAnalysis),
+      buildLayoutFromOptionList(
+        chartOptionsRef.current,
+        showChannelSection,
+        isPlotPausedForAnalysis,
+      ),
     );
   }, [buildLayoutFromOptionList, chartStructureKey, showChannelSection]);
 
@@ -699,7 +713,10 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
       // Snap height to grid-row increments so chart-wrapper never overflows its cell
       const rowHeight = window.innerHeight * 0.11;
       const dynamicPadding = isPlotPausedForAnalysis ? 120 : 60;
-      const targetRows = Math.max(3, Math.ceil((rawHeight + dynamicPadding) / rowHeight));
+      const targetRows = Math.max(
+        3,
+        Math.ceil((rawHeight + dynamicPadding) / rowHeight),
+      );
       const snappedHeight = Math.round(targetRows * rowHeight - dynamicPadding);
 
       const updatedOptions = chartOptionsRef.current.map((chart) =>
@@ -720,19 +737,44 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
       );
       setChartOptions(updatedOptions);
       setGridLayout(
-        buildLayoutFromOptionList(updatedOptions, showChannelSection, isPlotPausedForAnalysis),
+        buildLayoutFromOptionList(
+          updatedOptions,
+          showChannelSection,
+          isPlotPausedForAnalysis,
+        ),
       );
     },
-    [resizeID, resizeRef, chartOptionsRef, setChartOptions, setGridLayout, buildLayoutFromOptionList, showChannelSection, isPlotPausedForAnalysis],
+    [
+      resizeID,
+      resizeRef,
+      chartOptionsRef,
+      setChartOptions,
+      setGridLayout,
+      buildLayoutFromOptionList,
+      showChannelSection,
+      isPlotPausedForAnalysis,
+    ],
   );
 
   const handleResizeEnd = useCallback(() => {
     setResizeID(null);
     resizeRef.current = null;
     setGridLayout(
-      buildLayoutFromOptionList(chartOptionsRef.current, showChannelSection, isPlotPausedForAnalysis),
+      buildLayoutFromOptionList(
+        chartOptionsRef.current,
+        showChannelSection,
+        isPlotPausedForAnalysis,
+      ),
     );
-  }, [resizeRef, setResizeID, setGridLayout, buildLayoutFromOptionList, chartOptionsRef, showChannelSection, isPlotPausedForAnalysis]);
+  }, [
+    resizeRef,
+    setResizeID,
+    setGridLayout,
+    buildLayoutFromOptionList,
+    chartOptionsRef,
+    showChannelSection,
+    isPlotPausedForAnalysis,
+  ]);
 
   useEffect(() => {
     if (resizeID) {
@@ -848,7 +890,7 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
   return (
     <>
       <style>{customPlotsStyles}</style>
-      
+
       <div className="main-content row position-relative">
         {!showChannelSection && (
           <div className="col-12">
@@ -893,9 +935,10 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
               }}
             >
               {chartOptions.map((chart) => {
-                
                 return (
-                  <div key={chart.id} className="chart-container"
+                  <div
+                    key={chart.id}
+                    className="chart-container"
                     style={{
                       zIndex: resizeID === chart.id ? 10 : 1,
                       position: "relative",
@@ -926,6 +969,30 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
                           <LocationIcon size={22} />
                         </Tooltip>
                       </span>{" "}
+                      <Tooltip title="Y-Axis Range Settings">
+                        <span
+                          style={{
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            verticalAlign: "middle",
+                          }}
+                          onClick={() =>
+                            setAxisRangeOpenChartId((prev) =>
+                              prev === chart.id ? null : chart.id,
+                            )
+                          }
+                        >
+                          <TuneIcon
+                            style={{
+                              fontSize: 20,
+                              color:
+                                axisRangeOpenChartId === chart.id
+                                  ? "#6366f1"
+                                  : "#94a3b8",
+                            }}
+                          />
+                        </span>
+                      </Tooltip>{" "}
                       <Tooltip
                         title={
                           isPlotPausedForAnalysis
@@ -962,7 +1029,9 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
                       />
                       {isPlotPausedForAnalysis && (
                         <Stripline
-                          ref={(el) => { striplineRefs.current[chart.id] = el; }}
+                          ref={(el) => {
+                            striplineRefs.current[chart.id] = el;
+                          }}
                           chartId={chart.id}
                           chartRef={{
                             get current() {
@@ -974,11 +1043,27 @@ const Plots = forwardRef((props: LiveMonitoringProps, ref) => {
                           }}
                         />
                       )}
+                      {axisRangeOpenChartId === chart.id && (
+                        <AxisRangeDialog
+                          chartId={chart.id}
+                          chartRef={{
+                            get current() {
+                              return chartRefs.current[chart.id];
+                            },
+                            set current(val) {
+                              chartRefs.current[chart.id] = val;
+                            },
+                          }}
+                          onClose={() => setAxisRangeOpenChartId(null)}
+                        />
+                      )}
                       {isPlotPausedForAnalysis && (
                         <span className="time-range-handle">
                           <CustomSlider
                             id={chart.id}
-                            initValue={recordedDataTimeRangeRef.current[1] - 10000}
+                            initValue={
+                              recordedDataTimeRangeRef.current[1] - 10000
+                            }
                             range={recordedDataTimeRangeRef.current}
                             onChange={updatePlotsWithRecordedData}
                           />

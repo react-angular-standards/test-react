@@ -78,6 +78,10 @@ export interface AxisYConfig {
   interlacedColor?: string;
   lineThickness?: number;
   opposite?: boolean;
+  /** Fixed lower bound for the Y-axis. Null = auto (CanvasJS default). */
+  minimum?: number | null;
+  /** Fixed upper bound for the Y-axis. Null = auto (CanvasJS default). */
+  maximum?: number | null;
 }
 
 /**
@@ -100,11 +104,14 @@ export const makePrimaryAxisY = (unit: string, color: string): AxisYConfig => ({
  * Builds a secondary (right) Y-axis config for the given unit and channel colour.
  * Used as entries in `axisY2` in CanvasJS.
  */
-export const makeSecondaryAxisY = (unit: string, color: string): AxisYConfig => ({
+export const makeSecondaryAxisY = (
+  unit: string,
+  color: string,
+): AxisYConfig => ({
   title: unit,
   titleFontSize: 14,
   labelFontSize: 14,
-  gridThickness: 0,        // no grid lines for secondary axes — keeps chart clean
+  gridThickness: 0, // no grid lines for secondary axes — keeps chart clean
   lineColor: color,
   tickColor: color,
   labelFontColor: color,
@@ -115,7 +122,10 @@ export const makeSecondaryAxisY = (unit: string, color: string): AxisYConfig => 
  * Fallback primary Y-axis used when no channel info is available yet.
  * Colour is the neutral DEFAULT_AXIS_COLOR.
  */
-export const FALLBACK_AXIS_Y: AxisYConfig = makePrimaryAxisY("Value", DEFAULT_AXIS_COLOR);
+export const FALLBACK_AXIS_Y: AxisYConfig = makePrimaryAxisY(
+  "Value",
+  DEFAULT_AXIS_COLOR,
+);
 
 // ─── Legend ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +154,7 @@ export const SERIES_DEFAULTS: SeriesDefaults = {
   type: "line",
   showInLegend: true,
   visible: true,
-  markerType: "none",      // hide per-point markers for dense live data
+  markerType: "none", // hide per-point markers for dense live data
 };
 
 /**
