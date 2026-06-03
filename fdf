@@ -1,0 +1,41 @@
+
+  const handleDelete = (templateKey: string, templateId?: number) => {
+    setDataset((prevDataset: any) => {
+      const newDataset = { ...prevDataset };
+
+      if (newDataset[templateKey]) {
+        newDataset[templateKey] = {
+          ...newDataset[templateKey],
+          isDeleted: true,
+          deletedDate: new Date().toISOString(),
+        };
+      }
+
+      if (templateId && Array.isArray(newDataset.template)) {
+        newDataset.template = newDataset.template.filter(
+          (t: any) => t.id !== templateId
+        );
+      }
+
+      return newDataset;
+    });
+
+    if (templateId) {
+      setSelectedOptions((prev: any) =>
+        prev.filter((option: any) => option.id !== templateId)
+      );
+
+      setFormData((prevFormData: any) =>
+        prevFormData.filter((item: any) => item.id !== templateId)
+      );
+    }
+  };
+
+
+<button
+  onClick={() =>
+    handleDelete(datasetItem.objKey, datasetItem.TemplateId)
+  }
+  aria-label="Delete tab"
+  style={{ background: "none", border: "none", cursor: "pointer" }}
+>
