@@ -39,3 +39,84 @@
   aria-label="Delete tab"
   style={{ background: "none", border: "none", cursor: "pointer" }}
 >
+const WebSocket = require("ws");
+
+// ── Mock WebSocket server on ws://localhost:8080 ────────────────────────────
+// Channel IDs match db.json: card_task_id + channel_id (string concat → number)
+//   Card 1 (task_id=1): ids 11,12,13,14  — °C / bar
+//   Card 2 (task_id=2): ids 21,22,23,24  — V / A / L/min / RPM
+const MOCK_CHANNELS = [
+  { id: 11, base: 25, amp: 5, freq: 0.5, noise: 0.3 }, // Temperature_1  °C
+  { id: 12, base: 30, amp: 8, freq: 0.3, noise: 0.5 }, // Temperature_2  °C
+  { id: 13, base: 2.5, amp: 0.5, freq: 1.0, noise: 0.02 }, // Pressure_1     bar
+  { id: 14, base: 3.0, amp: 0.8, freq: 0.7, noise: 0.03 }, // Pressure_2     bar
+  { id: 21, base: 220, amp: 5, freq: 50.0, noise: 1.0 }, // Voltage_1      V
+  { id: 22, base: 5, amp: 1, freq: 50.0, noise: 0.05 }, // Current_1      A
+  { id: 23, base: 100, amp: 20, freq: 0.2, noise: 1.0 }, // Flow_1         L/min
+  { id: 24, base: 3000, amp: 500, freq: 0.1, noise: 10 }, // RPM_1          RPM
+];
+
+function buildPacket(channels) {
+  const dataCount = 1;
+  // Each channel advances byteOffset by 4*dataCount + 22 = 26
+  // Total buffer = (channelCount - 1) * 26 + 32
+  const totalSize = (channels.length - 1) * 26 + 32;
+  const ab = new ArrayBuffer(totalSize);
+  const view = new DataView(ab);
+  const ts = Date.now() / 1000;
+
+  // Global header (only bytes 0-5 matter globally)
+  view.setUint16(0, totalSize, true);
+  view.setUint8(2, 1);
+  view.setUint8(3, 1);
+  view.setUint16(4, channels.length, true);
+
+  channels.forEach((ch, i) => {
+    const off = i * 26;
+    const value = ch.base + ch.amp * Math.sin(2 * Math.PI * ch.freq * ts);
+    view.setUint16(off + 6, dataCount, true);
+    view.setUint32(off + 8, ch.id, true);
+    view.setFloat64(off + 12, ts, true);
+    view.setFloat64(off + 20, 0.1, true); // timeDelta 100ms
+    view.setFloat32(off + 28, value, true);
+  });
+
+  return Buffer.from(ab);
+}
+
+const wss = new WebSocket.Server({ port: 8080 });
+wss.on("connection", (ws) => {
+  console.log("[WS] Client connected");
+  let interval = null;
+  let activeChannels = [];
+
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      console.log("[WS] Received:", msg);
+      const ids = Array.isArray(msg.channelList) ? msg.channelList : [];
+      activeChannels = MOCK_CHANNELS.filter((ch) => ids.includes(ch.id));
+      console.log(
+        "[WS] Streaming channel ids:",
+        activeChannels.map((c) => c.id),
+      );
+
+      if (interval) clearInterval(interval);
+      if (activeChannels.length > 0) {
+        interval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(buildPacket(activeChannels));
+          }
+        }, 100);
+      }
+    } catch (e) {
+      console.error("[WS] Parse error:", e);
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("[WS] Client disconnected");
+    if (interval) clearInterval(interval);
+  });
+});
+console.log("Mock WS  server running on ws://localhost:8080");
