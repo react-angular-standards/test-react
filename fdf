@@ -1,122 +1,285 @@
+#!/usr/bin/env python3
+"""Neo4j backup runner for TAS Scheduler.
 
-  const handleDelete = (templateKey: string, templateId?: number) => {
-    setDataset((prevDataset: any) => {
-      const newDataset = { ...prevDataset };
+Usage:
+    python backup.py
 
-      if (newDataset[templateKey]) {
-        newDataset[templateKey] = {
-          ...newDataset[templateKey],
-          isDeleted: true,
-          deletedDate: new Date().toISOString(),
-        };
-      }
+Environment variables (or VCAP_SERVICES credentials):
+    NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE
+    S3_ENDPOINT, S3_BUCKET, S3_REGION, S3_PREFIX
+    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    BACKUP_RETENTION_DAYS
+"""
 
-      if (templateId && Array.isArray(newDataset.template)) {
-        newDataset.template = newDataset.template.filter(
-          (t: any) => t.id !== templateId
-        );
-      }
+import json
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-      return newDataset;
-    });
-
-    if (templateId) {
-      setSelectedOptions((prev: any) =>
-        prev.filter((option: any) => option.id !== templateId)
-      );
-
-      setFormData((prevFormData: any) =>
-        prevFormData.filter((item: any) => item.id !== templateId)
-      );
-    }
-  };
+import boto3
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
 
 
-<button
-  onClick={() =>
-    handleDelete(datasetItem.objKey, datasetItem.TemplateId)
-  }
-  aria-label="Delete tab"
-  style={{ background: "none", border: "none", cursor: "pointer" }}
->
-const WebSocket = require("ws");
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+def _get_vcap_service(name: str) -> Optional[Dict[str, Any]]:
+    vcap = os.environ.get("VCAP_SERVICES")
+    if not vcap:
+        return None
+    try:
+        services = json.loads(vcap)
+        for service_type, instances in services.items():
+            for instance in instances:
+                if instance.get("name") == name:
+                    return instance.get("credentials", {})
+    except json.JSONDecodeError:
+        pass
+    return None
 
-// ── Mock WebSocket server on ws://localhost:8080 ────────────────────────────
-// Channel IDs match db.json: card_task_id + channel_id (string concat → number)
-//   Card 1 (task_id=1): ids 11,12,13,14  — °C / bar
-//   Card 2 (task_id=2): ids 21,22,23,24  — V / A / L/min / RPM
-const MOCK_CHANNELS = [
-  { id: 11, base: 25, amp: 5, freq: 0.5, noise: 0.3 }, // Temperature_1  °C
-  { id: 12, base: 30, amp: 8, freq: 0.3, noise: 0.5 }, // Temperature_2  °C
-  { id: 13, base: 2.5, amp: 0.5, freq: 1.0, noise: 0.02 }, // Pressure_1     bar
-  { id: 14, base: 3.0, amp: 0.8, freq: 0.7, noise: 0.03 }, // Pressure_2     bar
-  { id: 21, base: 220, amp: 5, freq: 50.0, noise: 1.0 }, // Voltage_1      V
-  { id: 22, base: 5, amp: 1, freq: 50.0, noise: 0.05 }, // Current_1      A
-  { id: 23, base: 100, amp: 20, freq: 0.2, noise: 1.0 }, // Flow_1         L/min
-  { id: 24, base: 3000, amp: 500, freq: 0.1, noise: 10 }, // RPM_1          RPM
-];
 
-function buildPacket(channels) {
-  const dataCount = 1;
-  // Each channel advances byteOffset by 4*dataCount + 22 = 26
-  // Total buffer = (channelCount - 1) * 26 + 32
-  const totalSize = (channels.length - 1) * 26 + 32;
-  const ab = new ArrayBuffer(totalSize);
-  const view = new DataView(ab);
-  const ts = Date.now() / 1000;
+def _get_credential(
+    name: str, env_var: str, default: Optional[str] = None
+) -> Optional[str]:
+    creds = _get_vcap_service(name)
+    if creds:
+        for key in creds:
+            if key.lower() == env_var.lower():
+                return str(creds[key])
+    return os.environ.get(env_var, default)
 
-  // Global header (only bytes 0-5 matter globally)
-  view.setUint16(0, totalSize, true);
-  view.setUint8(2, 1);
-  view.setUint8(3, 1);
-  view.setUint16(4, channels.length, true);
 
-  channels.forEach((ch, i) => {
-    const off = i * 26;
-    const value = ch.base + ch.amp * Math.sin(2 * Math.PI * ch.freq * ts);
-    view.setUint16(off + 6, dataCount, true);
-    view.setUint32(off + 8, ch.id, true);
-    view.setFloat64(off + 12, ts, true);
-    view.setFloat64(off + 20, 0.1, true); // timeDelta 100ms
-    view.setFloat32(off + 28, value, true);
-  });
+class Config:
+    NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USERNAME: str = os.environ.get("NEO4J_USERNAME", "neo4j")
+    NEO4J_PASSWORD: str = _get_credential(
+        "neo4j-backup-creds", "NEO4J_PASSWORD"
+    ) or os.environ.get("NEO4J_PASSWORD", "")
+    NEO4J_DATABASE: str = os.environ.get("NEO4J_DATABASE", "neo4j")
+    NEO4J_VERSION: str = os.environ.get("NEO4J_VERSION", "5.x")
+    NEO4J_ADMIN_PATH: str = os.environ.get("NEO4J_ADMIN_PATH", "neo4j-admin")
 
-  return Buffer.from(ab);
-}
+    S3_ENDPOINT: str = os.environ.get("S3_ENDPOINT", "")
+    S3_BUCKET: str = os.environ.get("S3_BUCKET", "")
+    S3_REGION: str = os.environ.get("S3_REGION", "us-east-1")
+    S3_PREFIX: str = os.environ.get("S3_PREFIX", "neo4j-backups")
+    AWS_ACCESS_KEY_ID: str = _get_credential(
+        "ecs-s3-creds", "AWS_ACCESS_KEY_ID"
+    ) or os.environ.get("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = _get_credential(
+        "ecs-s3-creds", "AWS_SECRET_ACCESS_KEY"
+    ) or os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
-const wss = new WebSocket.Server({ port: 8080 });
-wss.on("connection", (ws) => {
-  console.log("[WS] Client connected");
-  let interval = null;
-  let activeChannels = [];
+    BACKUP_RETENTION_DAYS: int = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
+    BACKUP_DIR: str = os.environ.get("BACKUP_DIR", "/tmp/neo4j-backup")
 
-  ws.on("message", (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      console.log("[WS] Received:", msg);
-      const ids = Array.isArray(msg.channelList) ? msg.channelList : [];
-      activeChannels = MOCK_CHANNELS.filter((ch) => ids.includes(ch.id));
-      console.log(
-        "[WS] Streaming channel ids:",
-        activeChannels.map((c) => c.id),
-      );
 
-      if (interval) clearInterval(interval);
-      if (activeChannels.length > 0) {
-        interval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(buildPacket(activeChannels));
-          }
-        }, 100);
-      }
-    } catch (e) {
-      console.error("[WS] Parse error:", e);
-    }
-  });
+# ---------------------------------------------------------------------------
+# Neo4j Backup
+# ---------------------------------------------------------------------------
+def _ensure_backup_dir() -> Path:
+    backup_dir = Path(Config.BACKUP_DIR)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir
 
-  ws.on("close", () => {
-    console.log("[WS] Client disconnected");
-    if (interval) clearInterval(interval);
-  });
-});
-console.log("Mock WS  server running on ws://localhost:8080");
+
+def _run_neo4j_backup() -> Path:
+    backup_dir = _ensure_backup_dir()
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    dump_name = f"{Config.NEO4J_DATABASE}_{timestamp}"
+    dump_path = backup_dir / f"{dump_name}.dump"
+
+    if Config.NEO4J_VERSION.startswith("5"):
+        cmd = [
+            Config.NEO4J_ADMIN_PATH,
+            "database",
+            "dump",
+            Config.NEO4J_DATABASE,
+            f"--to-path={backup_dir}",
+        ]
+    else:
+        cmd = [
+            Config.NEO4J_ADMIN_PATH,
+            "dump",
+            f"--database={Config.NEO4J_DATABASE}",
+            f"--to={dump_path}",
+        ]
+
+    print(f"[BACKUP] Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"[ERROR] neo4j-admin failed:\n{result.stderr}")
+        sys.exit(1)
+
+    print(f"[BACKUP] neo4j-admin output:\n{result.stdout}")
+
+    if Config.NEO4J_VERSION.startswith("5"):
+        expected_file = backup_dir / f"{Config.NEO4J_DATABASE}.dump"
+        if expected_file.exists():
+            final_path = backup_dir / f"{dump_name}.dump"
+            expected_file.rename(final_path)
+            return final_path
+        else:
+            print(f"[ERROR] Expected dump file not found: {expected_file}")
+            sys.exit(1)
+
+    return dump_path
+
+
+def _cleanup_local_backups():
+    backup_dir = Path(Config.BACKUP_DIR)
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+        print(f"[CLEANUP] Removed local backup dir: {backup_dir}")
+
+
+# ---------------------------------------------------------------------------
+# ECS / S3 Upload
+# ---------------------------------------------------------------------------
+def _get_s3_client():
+    if not Config.S3_ENDPOINT:
+        print("[ERROR] S3_ENDPOINT is not set.")
+        sys.exit(1)
+    if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
+        print("[ERROR] AWS credentials are not set.")
+        sys.exit(1)
+
+    session = boto3.session.Session()
+    return session.client(
+        "s3",
+        region_name=Config.S3_REGION,
+        endpoint_url=Config.S3_ENDPOINT,
+        aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
+        config=BotoConfig(
+            signature_version="s3v4",
+            retries={"max_attempts": 3, "mode": "standard"},
+        ),
+    )
+
+
+def _upload_file(file_path: Path) -> str:
+    s3 = _get_s3_client()
+    bucket = Config.S3_BUCKET
+    key = f"{Config.S3_PREFIX}/{file_path.name}"
+
+    print(f"[UPLOAD] Uploading {file_path} to s3://{bucket}/{key}")
+    try:
+        s3.upload_file(
+            str(file_path),
+            bucket,
+            key,
+            ExtraArgs={"ServerSideEncryption": "AES256"},
+        )
+        print(f"[UPLOAD] Successfully uploaded to s3://{bucket}/{key}")
+    except ClientError as e:
+        print(f"[ERROR] S3 upload failed: {e}")
+        sys.exit(1)
+    return key
+
+
+def _cleanup_old_backups():
+    s3 = _get_s3_client()
+    bucket = Config.S3_BUCKET
+    prefix = f"{Config.S3_PREFIX}/"
+    retention = Config.BACKUP_RETENTION_DAYS
+
+    if retention <= 0:
+        return
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention)
+    print(f"[RETENTION] Removing objects older than {cutoff.isoformat()}")
+
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        deleted = 0
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                if obj["LastModified"] < cutoff:
+                    s3.delete_object(Bucket=bucket, Key=obj["Key"])
+                    print(f"[RETENTION] Deleted {obj['Key']}")
+                    deleted += 1
+        print(f"[RETENTION] Total deleted: {deleted}")
+    except ClientError as e:
+        print(f"[WARN] Failed to cleanup old backups: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    print("[START] Neo4j backup job started")
+
+    backup_file = _run_neo4j_backup()
+    _upload_file(backup_file)
+    _cleanup_old_backups()
+    _cleanup_local_backups()
+
+    print("[DONE] Neo4j backup job completed successfully")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+
+
+applications:
+  - name: neo4j-backup-runner
+    memory: 2G
+    disk_quota: 4G
+    instances: 0
+    buildpacks:
+      - https://github.com/cloudfoundry/apt-buildpack.git
+      - python_buildpack
+    command: echo "Task runner ready"
+    health-check-type: process
+    no-route: true
+    env:
+      NEO4J_VERSION: "5.x"
+      NEO4J_DATABASE: "neo4j"
+      NEO4J_URI: "bolt://neo4j.example.com:7687"
+      NEO4J_USERNAME: "neo4j"
+      # NEO4J_PASSWORD: set via service binding or env
+      # AWS_ACCESS_KEY_ID: set via service binding or env
+      # AWS_SECRET_ACCESS_KEY: set via service binding or env
+      S3_ENDPOINT: "https://ecs.example.com:9021"
+      S3_BUCKET: "neo4j-backups"
+      S3_REGION: "us-east-1"
+      BACKUP_RETENTION_DAYS: "30"
+    services:
+      - neo4j-backup-scheduler
+
+
+boto3>=1.28.0
+neo4j>=5.0.0
+python-dateutil>=2.8.0
+
+
+#!/bin/bash
+set -euo pipefail
+
+echo "[INFO] Starting backup runner..."
+
+# Ensure neo4j-admin is available if installed via apt-buildpack
+export PATH="/usr/bin:/usr/local/bin:$HOME/neo4j/bin:$PATH"
+
+# If neo4j-admin not found, try to locate it
+if ! command -v neo4j-admin &> /dev/null; then
+    echo "[WARN] neo4j-admin not in PATH. Checking common locations..."
+    for p in /usr/share/neo4j/bin/neo4j-admin /var/vcap/packages/neo4j/bin/neo4j-admin; do
+        if [ -x "$p" ]; then
+            export NEO4J_ADMIN_PATH="$p"
+            echo "[INFO] Found neo4j-admin at $p"
+            break
+        fi
+    done
+fi
+
+python3 backup.py
