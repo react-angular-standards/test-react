@@ -1,285 +1,222 @@
 #!/usr/bin/env python3
-"""Neo4j backup runner for TAS Scheduler.
+"""Neo4j backup runner using neo4j_backup.Extractor.
 
-Usage:
-    python backup.py
+Tries to upload to S3 (Dell ECS) first.
+Falls back to local storage if Neo4j or S3 is unreachable.
 
-Environment variables (or VCAP_SERVICES credentials):
-    NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE
-    S3_ENDPOINT, S3_BUCKET, S3_REGION, S3_PREFIX
-    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-    BACKUP_RETENTION_DAYS
+Runs continuously with a daily Python cron job.
 """
 
-import json
-import os
 import shutil
-import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+import tarfile
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 import boto3
+import schedule
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
+from neo4j import GraphDatabase
+from neo4j_backup import Extractor
+
+# ---------------------------------------------------------------------------
+# Hardcoded Config
+# ---------------------------------------------------------------------------
+NEO4J_URI = "bolt://kcs-prod-ewd-x2snw-c2-app-858dt.kcs-prod-ewd.k8s.boeing.com:32091"
+NEO4J_USER = "nailproduser"
+NEO4J_PASSWORD = "nAll-PU-45678utggtrelkiop90sd^ewqrt4fdgvc!"
+NEO4J_DATABASE = "neo4j"
+NEO4J_ENCRYPTED = False
+NEO4J_TRUST = "TRUST_ALL_CERTIFICATES"
+
+S3_ENDPOINT = "https://object1.cs.boeing.com:9021"
+S3_BUCKET = "pcf-4d0a80d4-d7f0-4578-b02e-eb2780c564cf"
+S3_PREFIX = "neo4j-backups"
+S3_PATH_STYLE_ACCESS = True
+AWS_ACCESS_KEY_ID = "pcf-40b0ed8b-f630-4014-9536-1ce4bb37d203"
+AWS_SECRET_ACCESS_KEY = "Gch5+QyHt194m21UP1co3oQxw/CiTy8g2Qg9FG7q"
+
+BACKUP_DIR = "backups"
+BACKUP_RETENTION_DAYS = 30
+SCHEDULE_TIME = "02:00"
 
 
 # ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-def _get_vcap_service(name: str) -> Optional[Dict[str, Any]]:
-    vcap = os.environ.get("VCAP_SERVICES")
-    if not vcap:
-        return None
-    try:
-        services = json.loads(vcap)
-        for service_type, instances in services.items():
-            for instance in instances:
-                if instance.get("name") == name:
-                    return instance.get("credentials", {})
-    except json.JSONDecodeError:
-        pass
-    return None
-
-
-def _get_credential(
-    name: str, env_var: str, default: Optional[str] = None
-) -> Optional[str]:
-    creds = _get_vcap_service(name)
-    if creds:
-        for key in creds:
-            if key.lower() == env_var.lower():
-                return str(creds[key])
-    return os.environ.get(env_var, default)
-
-
-class Config:
-    NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USERNAME: str = os.environ.get("NEO4J_USERNAME", "neo4j")
-    NEO4J_PASSWORD: str = _get_credential(
-        "neo4j-backup-creds", "NEO4J_PASSWORD"
-    ) or os.environ.get("NEO4J_PASSWORD", "")
-    NEO4J_DATABASE: str = os.environ.get("NEO4J_DATABASE", "neo4j")
-    NEO4J_VERSION: str = os.environ.get("NEO4J_VERSION", "5.x")
-    NEO4J_ADMIN_PATH: str = os.environ.get("NEO4J_ADMIN_PATH", "neo4j-admin")
-
-    S3_ENDPOINT: str = os.environ.get("S3_ENDPOINT", "")
-    S3_BUCKET: str = os.environ.get("S3_BUCKET", "")
-    S3_REGION: str = os.environ.get("S3_REGION", "us-east-1")
-    S3_PREFIX: str = os.environ.get("S3_PREFIX", "neo4j-backups")
-    AWS_ACCESS_KEY_ID: str = _get_credential(
-        "ecs-s3-creds", "AWS_ACCESS_KEY_ID"
-    ) or os.environ.get("AWS_ACCESS_KEY_ID", "")
-    AWS_SECRET_ACCESS_KEY: str = _get_credential(
-        "ecs-s3-creds", "AWS_SECRET_ACCESS_KEY"
-    ) or os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-
-    BACKUP_RETENTION_DAYS: int = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
-    BACKUP_DIR: str = os.environ.get("BACKUP_DIR", "/tmp/neo4j-backup")
-
-
-# ---------------------------------------------------------------------------
-# Neo4j Backup
-# ---------------------------------------------------------------------------
-def _ensure_backup_dir() -> Path:
-    backup_dir = Path(Config.BACKUP_DIR)
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    return backup_dir
-
-
-def _run_neo4j_backup() -> Path:
-    backup_dir = _ensure_backup_dir()
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    dump_name = f"{Config.NEO4J_DATABASE}_{timestamp}"
-    dump_path = backup_dir / f"{dump_name}.dump"
-
-    if Config.NEO4J_VERSION.startswith("5"):
-        cmd = [
-            Config.NEO4J_ADMIN_PATH,
-            "database",
-            "dump",
-            Config.NEO4J_DATABASE,
-            f"--to-path={backup_dir}",
-        ]
-    else:
-        cmd = [
-            Config.NEO4J_ADMIN_PATH,
-            "dump",
-            f"--database={Config.NEO4J_DATABASE}",
-            f"--to={dump_path}",
-        ]
-
-    print(f"[BACKUP] Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-
-    if result.returncode != 0:
-        print(f"[ERROR] neo4j-admin failed:\n{result.stderr}")
-        sys.exit(1)
-
-    print(f"[BACKUP] neo4j-admin output:\n{result.stdout}")
-
-    if Config.NEO4J_VERSION.startswith("5"):
-        expected_file = backup_dir / f"{Config.NEO4J_DATABASE}.dump"
-        if expected_file.exists():
-            final_path = backup_dir / f"{dump_name}.dump"
-            expected_file.rename(final_path)
-            return final_path
-        else:
-            print(f"[ERROR] Expected dump file not found: {expected_file}")
-            sys.exit(1)
-
-    return dump_path
-
-
-def _cleanup_local_backups():
-    backup_dir = Path(Config.BACKUP_DIR)
-    if backup_dir.exists():
-        shutil.rmtree(backup_dir)
-        print(f"[CLEANUP] Removed local backup dir: {backup_dir}")
-
-
-# ---------------------------------------------------------------------------
-# ECS / S3 Upload
+# S3 Helpers
 # ---------------------------------------------------------------------------
 def _get_s3_client():
-    if not Config.S3_ENDPOINT:
-        print("[ERROR] S3_ENDPOINT is not set.")
-        sys.exit(1)
-    if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
-        print("[ERROR] AWS credentials are not set.")
-        sys.exit(1)
+    boto_conf = BotoConfig(
+        signature_version="s3v4",
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+    if S3_PATH_STYLE_ACCESS:
+        boto_conf = BotoConfig(
+            signature_version="s3v4",
+            retries={"max_attempts": 3, "mode": "standard"},
+            s3={"addressing_style": "path"},
+        )
 
     session = boto3.session.Session()
     return session.client(
         "s3",
-        region_name=Config.S3_REGION,
-        endpoint_url=Config.S3_ENDPOINT,
-        aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
-        config=BotoConfig(
-            signature_version="s3v4",
-            retries={"max_attempts": 3, "mode": "standard"},
-        ),
+        region_name="us-east-1",  # default; set AWS_REGION env var to override
+        endpoint_url=S3_ENDPOINT,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        config=boto_conf,
     )
 
 
-def _upload_file(file_path: Path) -> str:
-    s3 = _get_s3_client()
-    bucket = Config.S3_BUCKET
-    key = f"{Config.S3_PREFIX}/{file_path.name}"
-
-    print(f"[UPLOAD] Uploading {file_path} to s3://{bucket}/{key}")
+def _upload_to_s3(file_path: Path) -> bool:
     try:
+        s3 = _get_s3_client()
+        key = f"{S3_PREFIX}/{file_path.name}"
+
+        print(f"[UPLOAD] Uploading {file_path} to s3://{S3_BUCKET}/{key}")
         s3.upload_file(
             str(file_path),
-            bucket,
+            S3_BUCKET,
             key,
             ExtraArgs={"ServerSideEncryption": "AES256"},
         )
-        print(f"[UPLOAD] Successfully uploaded to s3://{bucket}/{key}")
-    except ClientError as e:
-        print(f"[ERROR] S3 upload failed: {e}")
-        sys.exit(1)
-    return key
+        print(f"[UPLOAD] Success: s3://{S3_BUCKET}/{key}")
+        return True
+    except Exception as e:
+        print(f"[WARN] S3 upload failed: {e}")
+        return False
 
 
-def _cleanup_old_backups():
-    s3 = _get_s3_client()
-    bucket = Config.S3_BUCKET
-    prefix = f"{Config.S3_PREFIX}/"
-    retention = Config.BACKUP_RETENTION_DAYS
+def _cleanup_old_s3_backups():
+    try:
+        s3 = _get_s3_client()
+        prefix = f"{S3_PREFIX}/"
+        cutoff = datetime.now() - timedelta(days=BACKUP_RETENTION_DAYS)
 
-    if retention <= 0:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                if obj["LastModified"].replace(tzinfo=None) < cutoff:
+                    s3.delete_object(Bucket=S3_BUCKET, Key=obj["Key"])
+                    print(f"[RETENTION] Deleted from S3: {obj['Key']}")
+    except Exception as e:
+        print(f"[WARN] S3 cleanup failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Local Helpers
+# ---------------------------------------------------------------------------
+def _cleanup_old_local_backups():
+    backup_dir = Path(BACKUP_DIR)
+    if not backup_dir.exists():
         return
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=retention)
-    print(f"[RETENTION] Removing objects older than {cutoff.isoformat()}")
+    cutoff = datetime.now() - timedelta(days=BACKUP_RETENTION_DAYS)
+    for item in backup_dir.iterdir():
+        if item.is_dir() or item.suffix in (".tar.gz", ".dump"):
+            mtime = datetime.fromtimestamp(item.stat().st_mtime)
+            if mtime < cutoff:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+                print(f"[RETENTION] Deleted local: {item}")
+
+
+# ---------------------------------------------------------------------------
+# Backup job
+# ---------------------------------------------------------------------------
+def _run_backup():
+    print(f"[START] Backup job started at {datetime.now().isoformat()}")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archive_name = f"{NEO4J_DATABASE}_{timestamp}.tar.gz"
+    archive_path = Path(BACKUP_DIR) / archive_name
+
+    # Ensure local dir exists
+    Path(BACKUP_DIR).mkdir(parents=True, exist_ok=True)
+
+    # 1. Extract from Neo4j
+    extract_dir = Path(BACKUP_DIR) / f"{NEO4J_DATABASE}_{timestamp}"
+    neo4j_ok = False
 
     try:
-        paginator = s3.get_paginator("list_objects_v2")
-        deleted = 0
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                if obj["LastModified"] < cutoff:
-                    s3.delete_object(Bucket=bucket, Key=obj["Key"])
-                    print(f"[RETENTION] Deleted {obj['Key']}")
-                    deleted += 1
-        print(f"[RETENTION] Total deleted: {deleted}")
-    except ClientError as e:
-        print(f"[WARN] Failed to cleanup old backups: {e}")
+        print(f"[BACKUP] Connecting to {NEO4J_URI}")
+        driver = GraphDatabase.driver(
+            NEO4J_URI,
+            auth=(NEO4J_USER, NEO4J_PASSWORD),
+            encrypted=NEO4J_ENCRYPTED,
+            trust=NEO4J_TRUST,
+        )
+
+        extractor = Extractor(
+            project_dir=str(extract_dir),
+            driver=driver,
+            database=NEO4J_DATABASE,
+            input_yes=False,
+            compress=True,
+            indent_size=4,
+            pull_uniqueness_constraints=True,
+        )
+        extractor.extract_data()
+        driver.close()
+        print(f"[BACKUP] Data extracted to {extract_dir}")
+        neo4j_ok = True
+    except Exception as e:
+        print(f"[ERROR] Neo4j extract failed: {e}")
+        return
+
+    # 2. Package into tar.gz
+    try:
+        print(f"[ARCHIVE] Creating {archive_path}")
+        with tarfile.open(archive_path, "w:gz") as tar:
+            tar.add(extract_dir, arcname=extract_dir.name)
+        print(f"[ARCHIVE] Created {archive_path} ({archive_path.stat().st_size} bytes)")
+    except Exception as e:
+        print(f"[ERROR] Archive failed: {e}")
+        return
+    finally:
+        # Always remove extracted dir to save space
+        if extract_dir.exists():
+            shutil.rmtree(extract_dir)
+
+    # 3. Try S3 upload
+    s3_ok = _upload_to_s3(archive_path)
+
+    if s3_ok:
+        # Uploaded to S3 — remove local copy
+        archive_path.unlink()
+        print(f"[CLEANUP] Removed local archive after S3 upload")
+        _cleanup_old_s3_backups()
+    else:
+        # S3 failed — keep local copy
+        print(f"[FALLBACK] Keeping local backup: {archive_path}")
+        _cleanup_old_local_backups()
+
+    print(f"[DONE] Backup completed at {datetime.now().isoformat()}")
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main loop
 # ---------------------------------------------------------------------------
 def main():
-    print("[START] Neo4j backup job started")
+    print("[INIT] Neo4j cron backup service starting...")
+    print(f"[CONFIG] uri={NEO4J_URI}, database={NEO4J_DATABASE}")
+    print(f"[CONFIG] s3_bucket={S3_BUCKET}, s3_endpoint={S3_ENDPOINT}")
+    print(f"[CONFIG] local_dir={BACKUP_DIR}, retention={BACKUP_RETENTION_DAYS}d")
+    print(f"[CONFIG] schedule={SCHEDULE_TIME}")
 
-    backup_file = _run_neo4j_backup()
-    _upload_file(backup_file)
-    _cleanup_old_backups()
-    _cleanup_local_backups()
+    schedule.every().day.at(SCHEDULE_TIME).do(_run_backup)
+    print(f"[SCHEDULE] Running daily at {SCHEDULE_TIME}")
 
-    print("[DONE] Neo4j backup job completed successfully")
-    return 0
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in ("--now", "-n", "test"):
+        print("[TEST] Running single backup now...")
+        sys.exit(_run_backup() or 0)
     sys.exit(main())
-
-
-
-applications:
-  - name: neo4j-backup-runner
-    memory: 2G
-    disk_quota: 4G
-    instances: 0
-    buildpacks:
-      - https://github.com/cloudfoundry/apt-buildpack.git
-      - python_buildpack
-    command: echo "Task runner ready"
-    health-check-type: process
-    no-route: true
-    env:
-      NEO4J_VERSION: "5.x"
-      NEO4J_DATABASE: "neo4j"
-      NEO4J_URI: "bolt://neo4j.example.com:7687"
-      NEO4J_USERNAME: "neo4j"
-      # NEO4J_PASSWORD: set via service binding or env
-      # AWS_ACCESS_KEY_ID: set via service binding or env
-      # AWS_SECRET_ACCESS_KEY: set via service binding or env
-      S3_ENDPOINT: "https://ecs.example.com:9021"
-      S3_BUCKET: "neo4j-backups"
-      S3_REGION: "us-east-1"
-      BACKUP_RETENTION_DAYS: "30"
-    services:
-      - neo4j-backup-scheduler
-
-
-boto3>=1.28.0
-neo4j>=5.0.0
-python-dateutil>=2.8.0
-
-
-#!/bin/bash
-set -euo pipefail
-
-echo "[INFO] Starting backup runner..."
-
-# Ensure neo4j-admin is available if installed via apt-buildpack
-export PATH="/usr/bin:/usr/local/bin:$HOME/neo4j/bin:$PATH"
-
-# If neo4j-admin not found, try to locate it
-if ! command -v neo4j-admin &> /dev/null; then
-    echo "[WARN] neo4j-admin not in PATH. Checking common locations..."
-    for p in /usr/share/neo4j/bin/neo4j-admin /var/vcap/packages/neo4j/bin/neo4j-admin; do
-        if [ -x "$p" ]; then
-            export NEO4J_ADMIN_PATH="$p"
-            echo "[INFO] Found neo4j-admin at $p"
-            break
-        fi
-    done
-fi
-
-python3 backup.py
